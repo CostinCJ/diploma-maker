@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' file: blob: data:; style-src 'self' 'unsafe-inline'" />
+  <title>Diploma Maker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav id="steps">
+    <button data-step="setup" class="active">1. Sesiune</button>
+    <button data-step="kids">2. Copii</button>
+    <button data-step="teachers">3. Însoțitori</button>
+    <button data-step="templates">4. Șabloane</button>
+    <button data-step="generate">5. Generare</button>
+  </nav>
+  <main>
+    <section id="step-setup" class="step active"></section>
+    <section id="step-kids" class="step"></section>
+    <section id="step-teachers" class="step"></section>
+    <section id="step-templates" class="step"></section>
+    <section id="step-generate" class="step"></section>
+  </main>
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>
