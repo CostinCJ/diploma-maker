@@ -3,6 +3,11 @@ const path = require('path');
 const fs = require('fs');
 const { randomUUID } = require('crypto');
 
+// Chromium renders <input type="date"> in its UI locale, so on an en-US build a
+// Romanian guide was shown mm/dd/yyyy — American order on the one screen where
+// date order matters most. Must be set before the app is ready.
+app.commandLine.appendSwitch('lang', 'ro');
+
 function sessionFile() {
   return path.join(app.getPath('userData'), 'session.json');
 }
