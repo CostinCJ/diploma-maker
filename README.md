@@ -31,7 +31,27 @@ This app handles minors' names, so privacy is a functional requirement, not a ni
 - The temporary print document containing the names is unique per job and deleted immediately after printing or PDF export; any document left behind by a crash is purged at the next startup.
 - Replacing the group photo or a logo deletes the previous copy from the app data directory instead of leaving it behind.
 
-## Getting started
+## Installing on the camp laptop
+
+Download the latest `DiplomaMaker-Setup-<version>.exe` from the [releases page](https://github.com/CostinCJ/diploma-maker/releases) and run it. Nothing else is needed — Node.js is not required, the OCR model is inside the installer, and the app never touches the network afterwards.
+
+- The installer is **not code-signed**, so Windows shows *"Windows protected your PC"* on first run. Choose **More info → Run anyway**. (Signing requires a paid certificate.)
+- It installs per-user, so **no administrator rights** are needed.
+- Before camp, do one full dry run on that laptop: import a photo, check the names, and **print one real page** — A4 landscape with zero margins is the setting most likely to be wrong on an unfamiliar printer.
+- Session data (including participants' names) lives in `%APPDATA%\Diploma Maker\`. That is what to clear if the laptop is shared or handed back; *Sesiune nouă — șterge tot* does it from inside the app.
+
+### Cutting a release
+
+Tag a version and push it — [the workflow](.github/workflows/release.yml) builds the installer on a Windows runner and attaches it to the release:
+
+```bash
+npm version minor -m "v%s"   # or edit "version" in package.json by hand
+git push origin main --follow-tags
+```
+
+Building locally with `npm run dist` works on Windows; on Linux or macOS it needs Wine, which is exactly why the release build runs on GitHub.
+
+## Getting started (development)
 
 **Requirements:** Node.js 18+ and Windows (for packaging; development works anywhere Electron runs).
 
