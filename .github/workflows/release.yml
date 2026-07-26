@@ -1,0 +1,67 @@
+name: Release
+
+# Builds the Windows installer on a real Windows runner, so no Wine is needed.
+# Push a version tag (v1.1.0) to publish a release; run manually to get an
+# installer as a workflow artifact without publishing anything.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write # needed to create the release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # The model is deliberately not in the repository (9.5 MB binary). If this
+      # step silently produced an error page instead, the installer would ship
+      # without OCR and only fail once it was on the camp laptop — so the size
+      # is checked before the build rather than trusted.
+      - name: Download Romanian OCR model
+        shell: bash
+        run: |
+          curl -L --fail --retry 3 -o ocr-data/ron.traineddata \
+            https://github.com/tesseract-ocr/tessdata_best/raw/main/ron.traineddata
+          size=$(stat -c%s ocr-data/ron.traineddata)
+          echo "ron.traineddata: $size bytes"
+          if [ "$size" -lt 9000000 ]; then
+            echo "::error::OCR model download looks wrong ($size bytes) — refusing to build"
+            exit 1
+          fi
+
+      - run: npm test
+
+      - name: Build installer
+        shell: bash
+        run: npx electron-builder --win --publish never
+
+      # Confirms the model actually made it into the package, at the exact path
+      # main.js looks for when app.isPackaged.
+      - name: Verify the packaged app bundles the model
+        shell: bash
+        run: |
+          test -f "dist/win-unpacked/resources/ocr-data/ron.traineddata" \
+            || { echo "::error::model missing from packaged app"; exit 1; }
+          ls -la dist/*.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DiplomaMaker-Windows-installer
+          path: dist/*.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.exe --generate-notes --title "$GITHUB_REF_NAME"
