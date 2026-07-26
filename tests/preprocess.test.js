@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { grayscaleContrastStretch, adaptiveThreshold } from '../src/ocr/preprocess.js';
+import { grayscaleContrastStretch, adaptiveThreshold, computeScale } from '../src/ocr/preprocess.js';
 
 function px(...rgbas) { return { data: new Uint8ClampedArray(rgbas.flat()) }; }
 
@@ -44,5 +44,32 @@ describe('adaptiveThreshold', () => {
     expect(px(12, 8)).toBe(0);   // dark dot on the brighter side → black
     expect(px(4, 2)).toBe(255);  // background near dark side → white
     expect(px(12, 2)).toBe(255); // background near bright side → white
+  });
+});
+
+describe('computeScale', () => {
+  it('enlarges a small screenshot so text is big enough to read', () => {
+    // The real failing sample: 452x640 was fed to Tesseract untouched.
+    expect(computeScale(452, 640)).toBeCloseTo(2000 / 640, 5);
+  });
+
+  it('caps upscaling so a tiny image cannot explode in memory', () => {
+    expect(computeScale(50, 50)).toBe(4);
+  });
+
+  it('shrinks an oversized phone photo', () => {
+    expect(computeScale(4000, 3000)).toBeCloseTo(3000 / 4000, 5);
+  });
+
+  it('leaves an image already in the good band alone', () => {
+    expect(computeScale(2500, 1800)).toBe(1);
+  });
+
+  it('is driven by the long edge, not the width', () => {
+    expect(computeScale(640, 452)).toBeCloseTo(2000 / 640, 5);
+  });
+
+  it('survives a zero-sized image', () => {
+    expect(computeScale(0, 0)).toBe(1);
   });
 });

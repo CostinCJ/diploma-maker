@@ -1,4 +1,5 @@
 // src/ocr/preprocess.js
+import { findColumnRegions, estimateTextRows } from './columns.js';
 
 /** In-place grayscale + full-range contrast stretch on an ImageData-like {data}. */
 export function grayscaleContrastStretch(imageData) {
@@ -57,31 +58,76 @@ export function adaptiveThreshold(imageData, c = 10) {
   return imageData;
 }
 
-/** Browser-only: File → preprocessed PNG data URL (max 3000px, gray, adaptive-thresholded).
+// Tesseract wants roughly 30px of cap height. A phone photo has far more than
+// that and only needs capping; a small scan or screenshot has far less and must
+// be enlarged — the previous Math.min(1, …) only ever shrank, so a 452x640
+// list was fed in at ~6px per line and read as gibberish.
+export const TARGET_LONG_EDGE = 2000;
+export const MAX_LONG_EDGE = 3000;
+export const MAX_UPSCALE = 4;
+
+/** Scale factor to bring an image into the size band Tesseract reads best. */
+export function computeScale(width, height) {
+  const longEdge = Math.max(width, height);
+  if (!longEdge) return 1;
+  if (longEdge < TARGET_LONG_EDGE) return Math.min(MAX_UPSCALE, TARGET_LONG_EDGE / longEdge);
+  if (longEdge > MAX_LONG_EDGE) return MAX_LONG_EDGE / longEdge;
+  return 1;
+}
+
+/** Browser-only: decode a File and expose it for repeated OCR attempts.
+ *  Returns { width, height, regions, expectedRows, render(part) } where
+ *  `render({ region, enhance })` produces a PNG data URL for one attempt.
  *  Throws if the file is not a decodable image. */
-export async function preprocessImageFile(file) {
+export async function prepareImageFile(file) {
   const url = URL.createObjectURL(file);
+  let img;
   try {
-    const img = await new Promise((resolve, reject) => {
+    img = await new Promise((resolve, reject) => {
       const i = new Image();
       i.onload = () => resolve(i);
       i.onerror = () => reject(new Error('Fișierul nu este o imagine validă: ' + file.name));
       i.src = url;
     });
-    const scale = Math.min(1, 3000 / Math.max(img.width, img.height));
-    const w = Math.round(img.width * scale);
-    const h = Math.round(img.height * scale);
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, w, h);
-    const data = ctx.getImageData(0, 0, w, h);
-    grayscaleContrastStretch(data);
-    adaptiveThreshold(data);
-    ctx.putImageData(data, 0, 0);
-    return canvas.toDataURL('image/png');
   } finally {
     URL.revokeObjectURL(url);
   }
+
+  // Analyse the page at its natural size: geometry is what matters here, and
+  // upscaling first would only cost memory.
+  const base = document.createElement('canvas');
+  base.width = img.width;
+  base.height = img.height;
+  const baseCtx = base.getContext('2d', { willReadFrequently: true });
+  baseCtx.drawImage(img, 0, 0);
+  const pixels = baseCtx.getImageData(0, 0, img.width, img.height);
+
+  return {
+    width: img.width,
+    height: img.height,
+    regions: findColumnRegions(pixels),
+    expectedRows: estimateTextRows(pixels),
+    /** @param part { region: {x,width}|null, enhance: boolean } */
+    render({ region = null, enhance = false } = {}) {
+      const sx = region ? region.x : 0;
+      const sw = region ? region.width : img.width;
+      const scale = computeScale(sw, img.height);
+      const w = Math.max(1, Math.round(sw * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, sx, 0, sw, img.height, 0, 0, w, h);
+      if (enhance) {
+        // Only on request: binarising a clean scan destroys it (9 names vs 62
+        // on the sample), but it rescues low-contrast and unevenly lit pages.
+        const data = ctx.getImageData(0, 0, w, h);
+        grayscaleContrastStretch(data);
+        adaptiveThreshold(data);
+        ctx.putImageData(data, 0, 0);
+      }
+      return canvas.toDataURL('image/png');
+    },
+  };
 }

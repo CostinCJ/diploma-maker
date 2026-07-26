@@ -44,4 +44,28 @@ describe('validateForGeneration', () => {
     expect(r.errors).toEqual([]);
     expect(r.warnings.length).toBe(2);
   });
+
+  it('errors when the end date is before the start date', () => {
+    const s = { ...readySession(), startDate: '2026-07-12', endDate: '2026-07-07' };
+    expect(validateForGeneration(s, 'all').errors.some((e) => e.includes('sfârșit'))).toBe(true);
+  });
+
+  it('accepts a single-day session', () => {
+    const s = { ...readySession(), startDate: '2026-07-07', endDate: '2026-07-07' };
+    expect(validateForGeneration(s, 'all').errors).toEqual([]);
+  });
+
+  it('warns about duplicate names, ignoring case and extra spaces', () => {
+    const s = { ...readySession(), kids: ['POPESCU ANA', 'popescu   ana', 'IONESCU DAN'] };
+    const r = validateForGeneration(s, 'kids');
+    expect(r.errors).toEqual([]);
+    expect(r.warnings.some((w) => w.includes('POPESCU ANA'))).toBe(true);
+    expect(r.warnings.some((w) => w.includes('IONESCU DAN'))).toBe(false);
+  });
+
+  it('does not warn about duplicates across batches when only one is generated', () => {
+    const s = { ...readySession(), kids: ['ANA POP'], teachers: ['ANA POP'] };
+    expect(validateForGeneration(s, 'kids').warnings).toEqual([]);
+    expect(validateForGeneration(s, 'all').warnings.some((w) => w.includes('ANA POP'))).toBe(true);
+  });
 });

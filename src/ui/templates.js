@@ -2,7 +2,7 @@
 import { formatDateRo } from '../shared/template.js';
 import { renderDiplomaHtml } from '../shared/diplomaHtml.js';
 import { DIPLOMA_CSS } from '../shared/diplomaCss.js';
-import { fileUrl } from '../renderer.js';
+import { fileUrl } from '../shared/fileUrl.js';
 
 const LINES = [
   { key: 'title', label: 'Titlu' },

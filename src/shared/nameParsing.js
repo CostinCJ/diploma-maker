@@ -1,5 +1,6 @@
 // src/shared/nameParsing.js
-const HEADER_RE = /TABEL|PARTICIPAN|NUMELE|PRENUMELE|ELEVILOR|^NR\.?$/i;
+// Matched after punctuation has been stripped, so 'NR.' arrives here as 'NR'.
+const HEADER_RE = /TABEL|PARTICIPAN|NUMELE|PRENUMELE|ELEVILOR|^NR$/i;
 const UPPER_RE = /[A-ZĂÂÎȘȚŞŢ]/;
 const countUpper = (s) => (s.match(/[A-ZĂÂÎȘȚŞŢ]/g) || []).length;
 

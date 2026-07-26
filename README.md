@@ -14,12 +14,12 @@ Built as a Windows desktop app (Electron) with a **hard privacy constraint — c
 
 - **Session setup** — start/end dates, a group background photo, and two corner logos, shared by every diploma in the session.
 - **Bulk import via OCR** — drop in phone photos of printed participant lists; names land in an editable, numbered table next to the original photo so every row can be verified by eye.
-- **Image preprocessing** — grayscale, full-range contrast stretch, and adaptive local thresholding (summed-area table for O(1) window means) so creased, curved, and unevenly lit phone photos still read cleanly.
+- **Adaptive OCR pipeline** — Tesseract's layout analysis is unstable on low-resolution lists, so no single recipe wins: the app scales the page into the size band Tesseract reads best, detects column gutters, and tries a few segmentation/preprocessing combinations, keeping whichever recovers the most full names. On a 452x640 two-column sample this took the result from 2 names to 120.
 - **Romanian-aware parsing** — diacritics (Ș Ț Ă Î Â) preserved; header rows, row numbers, and OCR junk stripped heuristically. No row is ever silently deleted.
 - **Manual teacher list** — a separate, simple list for the handful of accompanying teachers.
 - **Editable templates** — fixed diploma layout, fully editable wording, with two variants (kid / teacher) and a live preview using real session assets.
 - **Print & export** — print the whole session, kids only, or teachers only; or export the same render to PDF. One landscape A4 diploma per page — preview is the print output.
-- **Persistent sessions** — everything is stored locally in the app data directory and can be reopened later.
+- **Persistent sessions** — everything is stored locally in the app data directory and can be reopened later. Saves are written atomically (temp file + rename), and the last edits are flushed synchronously when the window closes, so a crash or a quick Alt+F4 cannot truncate or lose the list.
 
 ## Privacy by design
 
@@ -28,7 +28,8 @@ This app handles minors' names, so privacy is a functional requirement, not a ni
 - The Romanian Tesseract model (`ron.traineddata`, tessdata_best) is **bundled in the installer**. Nothing is ever downloaded at runtime — if the model file is missing, OCR fails loudly rather than silently falling back to a CDN.
 - No `fetch`/HTTP code exists anywhere in the app. It runs correctly with networking disabled.
 - The renderer runs behind a `contextBridge` preload with a strict Content-Security-Policy (`default-src 'self'`); the print window is sandboxed.
-- The temporary print document containing the names is deleted immediately after printing or PDF export.
+- The temporary print document containing the names is unique per job and deleted immediately after printing or PDF export; any document left behind by a crash is purged at the next startup.
+- Replacing the group photo or a logo deletes the previous copy from the app data directory instead of leaving it behind.
 
 ## Getting started
 
@@ -71,8 +72,10 @@ electron/
 src/
   index.html         Five-step shell (session → kids → teachers → templates → generate)
   renderer.js        Step routing and session bootstrap
-  ocr/preprocess.js  Grayscale, contrast stretch, adaptive thresholding
-  shared/            Pure logic: name parsing, templates, validation, diploma HTML/CSS
+  ocr/preprocess.js  Scaling, grayscale, contrast stretch, adaptive thresholding
+  ocr/columns.js     Column-gutter and text-row detection (pure)
+  ocr/readNames.js   Picks the best of several OCR attempts (pure)
+  shared/            Pure logic: name parsing, templates, validation, file URLs, diploma HTML/CSS
   ui/                One module per step
 tests/               Vitest unit tests for the pure shared logic
 ocr-data/            Bundled Tesseract model (gitignored — see Getting started)
@@ -91,7 +94,7 @@ Electron 33 · tesseract.js 5 · Vitest 2 · electron-builder 25 · vanilla ES m
 npm test
 ```
 
-Unit tests cover OCR post-processing (header filtering, row-number stripping, diacritic preservation), template substitution, session persistence, validation rules, and diploma HTML rendering.
+Unit tests cover OCR post-processing (header filtering, row-number stripping, diacritic preservation), image preprocessing, template substitution, session persistence (including corrupt-file recovery), validation rules, `file://` URL building, and diploma HTML rendering.
 
 ## License
 

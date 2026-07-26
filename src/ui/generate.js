@@ -3,7 +3,7 @@ import { formatDateRo } from '../shared/template.js';
 import { renderDiplomaHtml, buildPrintDocument } from '../shared/diplomaHtml.js';
 import { DIPLOMA_CSS } from '../shared/diplomaCss.js';
 import { validateForGeneration } from '../shared/validation.js';
-import { fileUrl } from '../renderer.js';
+import { fileUrl } from '../shared/fileUrl.js';
 
 export function init(state, save) {
   const el = document.getElementById('step-generate');
@@ -22,6 +22,7 @@ export function init(state, save) {
       <button class="primary" id="pdfBtn">Exportă PDF</button>
     </div>
     <div class="error" id="genErrors"></div>
+    <p class="muted" id="genCount"></p>
     <div id="genPreview" style="margin-top:16px; display:flex; flex-wrap:wrap; gap:12px"></div>`;
 
   if (!document.getElementById('diploma-css')) {
@@ -53,15 +54,24 @@ export function init(state, save) {
   function guard(batch) {
     const errBox = el.querySelector('#genErrors');
     const { errors, warnings } = validateForGeneration(state.session, batch);
-    if (errors.length) { errBox.textContent = errors.join(' '); return null; }
+    if (errors.length) {
+      errBox.textContent = errors.join(' ');
+      el.querySelector('#genCount').textContent = ''; // don't leave a stale count
+      return null;
+    }
     errBox.textContent = '';
-    if (warnings.length && !confirm(warnings.join('\n') + '\n\nContinui fără acestea?')) return null;
+    // Warnings now cover duplicate names as well as missing images, so the
+    // question has to stay generic.
+    if (warnings.length && !confirm(warnings.join('\n') + '\n\nContinui oricum?')) return null;
     return buildFragments(batch);
   }
 
   el.querySelector('#previewBtn').addEventListener('click', () => {
     const frags = guard(el.querySelector('#batch').value);
     if (!frags) return;
+    // Page count up front: this is also the number of sheets about to be printed.
+    el.querySelector('#genCount').textContent = frags.length === 1
+      ? '1 diplomă' : `${frags.length} diplome`;
     const box = el.querySelector('#genPreview');
     box.innerHTML = '';
     for (const f of frags) {
@@ -72,22 +82,35 @@ export function init(state, save) {
     }
   });
 
-  el.querySelector('#printBtn').addEventListener('click', async () => {
+  const actionButtons = ['#previewBtn', '#printBtn', '#pdfBtn'].map((s) => el.querySelector(s));
+
+  /** Runs one print/export job with the buttons locked, so a second click
+   *  cannot start an overlapping job while the system dialog is open. */
+  async function runExclusive(fn) {
+    actionButtons.forEach((b) => { b.disabled = true; });
+    try {
+      await fn();
+    } finally {
+      actionButtons.forEach((b) => { b.disabled = false; });
+    }
+  }
+
+  el.querySelector('#printBtn').addEventListener('click', () => runExclusive(async () => {
     const frags = guard(el.querySelector('#batch').value);
     if (!frags) return;
     try {
-      const { ok, reason } = await window.api.printBatch(buildPrintDocument(frags));
-      if (!ok && reason !== 'cancelled') alert('Tipărirea a eșuat: ' + reason);
+      const res = await window.api.printBatch(buildPrintDocument(frags));
+      if (!res.ok && !res.canceled) alert('Tipărirea a eșuat: ' + res.reason);
     } catch (err) { alert('Tipărirea a eșuat: ' + err.message); }
-  });
+  }));
 
-  el.querySelector('#pdfBtn').addEventListener('click', async () => {
+  el.querySelector('#pdfBtn').addEventListener('click', () => runExclusive(async () => {
     const frags = guard(el.querySelector('#batch').value);
     if (!frags) return;
     try {
       const res = await window.api.exportPdf(buildPrintDocument(frags));
       if (res.ok) alert('PDF salvat: ' + res.filePath);
-      else if (res.reason !== 'canceled') alert('Exportul a eșuat: ' + res.reason);
+      else if (!res.canceled) alert('Exportul a eșuat: ' + res.reason);
     } catch (err) { alert('Exportul a eșuat: ' + err.message); }
-  });
+  }));
 }

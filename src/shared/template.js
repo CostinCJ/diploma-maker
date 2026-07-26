@@ -19,7 +19,7 @@ export const DEFAULT_TEMPLATES = {
   },
   teacher: {
     title: 'Diplomă de participare',
-    awardLine: 'SE ACORDĂ D-NEI ÎNSOȚITOARE',
+    awardLine: 'SE ACORDĂ D-LUI/D-NEI ÎNSOȚITOR/ÎNSOȚITOARE',
     participationLine: 'pentru participarea la TABERE APUSENI',
     dateLine: 'în perioada {start} - {end}',
   },

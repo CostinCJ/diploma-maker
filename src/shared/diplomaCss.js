@@ -22,6 +22,9 @@ export const DIPLOMA_CSS = `
 .diploma .name {
   font-size: 26pt; font-weight: bold; margin: 0;
   min-width: 100mm; padding: 0 10mm 2mm; border-bottom: 1px dotted #444;
+  /* Long Romanian compound names must wrap inside the page instead of running
+     past the dotted rule and off the sheet. */
+  max-width: 100%; overflow-wrap: break-word;
 }
 .diploma .part { font-size: 16pt; font-style: italic; margin: 0; }
 .diploma .dates { font-size: 14pt; margin: 0; }

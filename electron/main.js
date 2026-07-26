@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { randomUUID } = require('crypto');
 
 function sessionFile() {
   return path.join(app.getPath('userData'), 'session.json');
@@ -20,9 +21,32 @@ ipcMain.handle('session:load', () => {
   }
 });
 
+// Write to a temp file and rename over the target: rename is atomic, so a crash
+// or power loss mid-write can never leave a truncated session.json behind (that
+// would read back as corrupt and silently drop the whole participant list).
+function writeSession(session) {
+  const target = sessionFile();
+  const tmp = target + '.' + process.pid + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(session, null, 2));
+  fs.renameSync(tmp, target);
+}
+
 ipcMain.handle('session:save', (_e, session) => {
-  fs.writeFileSync(sessionFile(), JSON.stringify(session, null, 2));
+  writeSession(session);
   return true;
+});
+
+// Synchronous twin, used only from the renderer's `beforeunload` handler: a
+// debounced save still in flight would otherwise be dropped when the window
+// closes, losing the last few hundred milliseconds of edits.
+ipcMain.on('session:save-sync', (e, session) => {
+  try {
+    writeSession(session);
+    e.returnValue = true;
+  } catch (err) {
+    console.error('[session] sync save failed', err);
+    e.returnValue = false;
+  }
 });
 
 // kind: 'background' | 'logoLeft' | 'logoRight'. Copies into userData so the
@@ -36,8 +60,21 @@ ipcMain.handle('asset:pick', async (_e, kind) => {
   });
   if (canceled || !filePaths[0]) return null;
   const src = filePaths[0];
-  const dest = path.join(assetsDir(), kind + path.extname(src).toLowerCase());
+  const dir = assetsDir();
+  // Unique filename per pick. A stable name (background.png) kept resolving to
+  // the same file:// URL, so after replacing an image Chromium served the old
+  // one from cache — the thumbnail worked around it with a ?t= query, but the
+  // preview and the printed diploma still showed the previous picture.
+  const dest = path.join(dir, `${kind}-${Date.now()}${path.extname(src).toLowerCase()}`);
   fs.copyFileSync(src, dest);
+  // Previous copies would otherwise stay in userData forever — for the group
+  // photo of a children's camp that is a privacy leak, not just clutter.
+  for (const f of fs.readdirSync(dir)) {
+    // `kind + '.'` also matches copies left by earlier versions of the app.
+    if ((f.startsWith(kind + '-') || f.startsWith(kind + '.')) && path.join(dir, f) !== dest) {
+      try { fs.unlinkSync(path.join(dir, f)); } catch {}
+    }
+  }
   return dest;
 });
 
@@ -83,7 +120,7 @@ function getOcrWorker() {
   return ocrWorkerPromise;
 }
 
-async function recognizeDataUrl(pngDataUrl, layout) {
+async function recognizeDataUrl(pngDataUrl) {
   if (
     typeof pngDataUrl !== 'string'
     || !pngDataUrl.startsWith('data:image/')
@@ -92,39 +129,75 @@ async function recognizeDataUrl(pngDataUrl, layout) {
     throw new Error('Imagine invalidă pentru OCR.');
   }
   const worker = await getOcrWorker();
-  // 'table' = one column of names (participant lists) → PSM SINGLE_COLUMN;
-  // anything else falls back to Tesseract's automatic page segmentation.
-  await worker.setParameters({
-    tessedit_pageseg_mode: layout === 'table' ? PSM.SINGLE_COLUMN : PSM.AUTO,
-  });
+  // Always automatic segmentation. SINGLE_COLUMN used to be the default for
+  // participant lists, but measured no better on single-column pages and much
+  // worse on two-column ones; the renderer now splits columns itself and picks
+  // the best of several attempts, which is where the real gain is.
+  await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
   const buf = Buffer.from(pngDataUrl.split(',')[1], 'base64');
   const { data } = await worker.recognize(buf);
   return data.text;
 }
 
-ipcMain.handle('ocr:recognize', async (_e, pngDataUrl, layout) => {
+// Returns { ok: true, text } | { ok: false, error }. Deliberately not a
+// rejection: ipcRenderer.invoke prefixes rejected errors with "Error invoking
+// remote method 'ocr:recognize': Error: ...", which ends up in front of the
+// user. Matches the shape print:batch / print:pdf already use.
+ipcMain.handle('ocr:recognize', async (_e, pngDataUrl) => {
   try {
-    return await recognizeDataUrl(pngDataUrl, layout);
+    return { ok: true, text: await recognizeDataUrl(pngDataUrl) };
   } catch (err) {
-    // Rejections propagate to the renderer as rejected promises; keep the
-    // message clean and user-presentable.
-    throw new Error(err && err.message ? err.message : 'OCR a eșuat.');
+    console.error('[ocr]', err);
+    return { ok: false, error: err && err.message ? err.message : 'OCR a eșuat.' };
   }
 });
 
 // --- Printing & PDF (renders the standalone print document in a hidden window) ---
-async function loadPrintWindow(fullHtml) {
-  const file = path.join(app.getPath('userData'), 'print.html');
+const PRINT_DOC_RE = /^print(-[\w-]+)?\.html$/;
+
+// One temp file per job: print and PDF export can legitimately overlap (the
+// print dialog waits on the user), and a shared fixed name meant whichever job
+// finished first deleted the document the other one was still rendering.
+function writePrintDoc(fullHtml) {
+  if (typeof fullHtml !== 'string' || !fullHtml) throw new Error('Document de tipărit invalid.');
+  const file = path.join(app.getPath('userData'), `print-${randomUUID()}.html`);
   fs.writeFileSync(file, fullHtml);
+  return file;
+}
+
+function removePrintDoc(file) {
+  // The temp document contains kids' names — remove it as soon as we are done.
+  if (file) { try { fs.unlinkSync(file); } catch {} }
+}
+
+// A crash or forced quit during printing leaves a document full of names in
+// userData; clear any leftovers on startup.
+function purgeStalePrintDocs() {
+  try {
+    const dir = app.getPath('userData');
+    for (const f of fs.readdirSync(dir)) {
+      if (PRINT_DOC_RE.test(f)) { try { fs.unlinkSync(path.join(dir, f)); } catch {} }
+    }
+  } catch {}
+}
+
+async function openPrintWindow(file) {
   const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true } });
   await w.loadFile(file);
   return w;
 }
 
+/** Electron/Chromium report a user-cancelled print job through the failure
+ *  reason, spelled 'canceled' or 'cancelled' depending on version — match both
+ *  so cancelling never surfaces as an error alert. */
+const isCancelReason = (reason) => /cancel/i.test(String(reason || ''));
+
 ipcMain.handle('print:batch', async (_e, fullHtml) => {
   let w = null;
+  let file = null;
   try {
-    w = await loadPrintWindow(fullHtml);
+    file = writePrintDoc(fullHtml);
+    w = await openPrintWindow(file);
     const win = w;
     // `await` keeps us inside try until the print callback resolves, so
     // finally only destroys the window after printing finishes. No timeout
@@ -133,49 +206,62 @@ ipcMain.handle('print:batch', async (_e, fullHtml) => {
     return await new Promise((resolve) => {
       win.webContents.print(
         { printBackground: true, landscape: true, margins: { marginType: 'none' } },
-        (ok, reason) => resolve({ ok, reason: reason || '' }),
+        (ok, reason) => resolve({ ok, canceled: !ok && isCancelReason(reason), reason: reason || '' }),
       );
     });
   } catch (err) {
-    return { ok: false, reason: err.message };
+    return { ok: false, canceled: false, reason: err.message };
   } finally {
     if (w && !w.isDestroyed()) w.destroy();
-    // The temp document contains kids' names — remove it after use.
-    try { fs.unlinkSync(path.join(app.getPath('userData'), 'print.html')); } catch {}
+    removePrintDoc(file);
   }
 });
 
 ipcMain.handle('print:pdf', async (_e, fullHtml) => {
   let w = null;
+  let file = null;
   try {
     const { canceled, filePath } = await dialog.showSaveDialog({
       defaultPath: 'diplome.pdf',
       filters: [{ name: 'PDF', extensions: ['pdf'] }],
     });
-    if (canceled || !filePath) return { ok: false, reason: 'canceled' };
-    w = await loadPrintWindow(fullHtml);
+    if (canceled || !filePath) return { ok: false, canceled: true, reason: 'canceled' };
+    file = writePrintDoc(fullHtml);
+    w = await openPrintWindow(file);
     const pdf = await w.webContents.printToPDF({
       landscape: true, pageSize: 'A4', printBackground: true,
       margins: { marginType: 'none' },
     });
     fs.writeFileSync(filePath, pdf);
-    return { ok: true, filePath };
+    return { ok: true, canceled: false, filePath };
   } catch (err) {
-    return { ok: false, reason: err.message };
+    return { ok: false, canceled: false, reason: err.message };
   } finally {
     if (w && !w.isDestroyed()) w.destroy();
-    // The temp document contains kids' names — remove it after use.
-    try { fs.unlinkSync(path.join(app.getPath('userData'), 'print.html')); } catch {}
+    removePrintDoc(file);
   }
 });
+
+let mainWindow = null;
 
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 860,
-    webPreferences: { preload: path.join(__dirname, 'preload.js') },
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      // Electron 33 defaults, pinned explicitly so a future default change
+      // cannot quietly hand node access to the renderer.
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
   });
+  // The app is a single local page: nothing may open a window or navigate away.
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
+  mainWindow = win;
 }
 
 // OCR self-test, gated by env var (kept on purpose: also used to verify the
@@ -192,6 +278,19 @@ app.whenReady().then(() => {
       .then(() => app.quit());
     return;
   }
+  // A second instance would overwrite the first one's session.json (both save
+  // the whole session on every edit) and purge its temp print document — keep
+  // one window and focus it instead.
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+    return;
+  }
+  app.on('second-instance', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+  purgeStalePrintDocs();
   createWindow();
 });
 app.on('window-all-closed', () => app.quit());

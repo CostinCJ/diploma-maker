@@ -1,3 +1,7 @@
 node_modules/
 dist/
-ocr-data/*.traineddata
+# The Tesseract model is bundled by the installer but never committed (large
+# binary); the directory itself is tracked so the README's download step works
+# on a fresh clone and so electron-builder's extraResources path always exists.
+ocr-data/*
+!ocr-data/.gitkeep

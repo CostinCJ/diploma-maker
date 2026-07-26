@@ -31,6 +31,6 @@ describe('DEFAULT_TEMPLATES', () => {
       expect(t.dateLine).toContain('{start}');
     }
     expect(DEFAULT_TEMPLATES.kid.awardLine).toBe('SE ACORDĂ ELEVULUI/ELEVEI');
-    expect(DEFAULT_TEMPLATES.teacher.awardLine).toBe('SE ACORDĂ D-NEI ÎNSOȚITOARE');
+    expect(DEFAULT_TEMPLATES.teacher.awardLine).toBe('SE ACORDĂ D-LUI/D-NEI ÎNSOȚITOR/ÎNSOȚITOARE');
   });
 });

@@ -1,5 +1,6 @@
 // src/ui/setup.js
-import { fileUrl, initSections } from '../renderer.js';
+import { initSections } from '../renderer.js';
+import { fileUrl } from '../shared/fileUrl.js';
 import { defaultSession } from '../shared/session.js';
 
 const ASSETS = [
@@ -42,10 +43,9 @@ export function init(state, save) {
     const p = state.session[key];
     img.hidden = !p;
     if (p) {
-      // Re-picking an image often yields the same path (kind + extension), so
-      // clear src first to force a reload of the new file contents.
-      img.src = '';
-      img.src = fileUrl(p) + '?t=' + Date.now();
+      // Each pick lands on its own filename (see asset:pick), so the URL always
+      // differs from the previous one and no cache-busting query is needed.
+      img.src = fileUrl(p);
       img.onerror = () => { // corrupt/unreadable file → reject it
         err.textContent = 'Imaginea nu a putut fi încărcată — alege alt fișier.';
         state.session[key] = '';
