@@ -53,6 +53,15 @@ Then run the app:
 npm start
 ```
 
+## Getting good OCR results
+
+Recognition quality is dominated by how much detail the photo actually contains — no amount of processing invents pixels that were never captured.
+
+- **Resolution is the single biggest factor.** Tesseract wants roughly 30px of cap height per line. A 452x640 screenshot of a 120-row list gives about 6px and is essentially unreadable; the same list photographed at full phone resolution reads cleanly. Fill the frame with the sheet and avoid shrinking the file before importing.
+- **If the list already exists digitally** (a spreadsheet, a PDF), OCR is the wrong tool — retyping or pasting a handful of names beats correcting a bad scan.
+- **Expect an import to take a while.** The app tries the page whole, then per column, escalating to contrast enhancement only when a pass falls short — up to six recognition passes on a two-column page. It stops early when the first pass reads well, and the status line names the attempt in flight.
+- **Every row is editable.** OCR output lands in a numbered table beside the original photo precisely so it can be checked by eye; nothing is ever silently dropped.
+
 ## Scripts
 
 | Command | What it does |
@@ -82,7 +91,7 @@ ocr-data/            Bundled Tesseract model (gitignored — see Getting started
 docs/                Design spec and implementation plan
 ```
 
-The `shared/` modules are deliberately free of DOM and Electron dependencies, so the parsing, templating, validation, and diploma-rendering logic is unit-tested directly.
+The `shared/` modules and the pure parts of `ocr/` (`columns.js`, `readNames.js`, and the scaling maths in `preprocess.js`) are deliberately free of DOM and Electron dependencies, so parsing, templating, validation, page geometry, OCR strategy, and diploma rendering are all unit-tested directly. Only the canvas work in `preprocess.js` needs a browser.
 
 ## Tech stack
 
@@ -94,7 +103,7 @@ Electron 33 · tesseract.js 5 · Vitest 2 · electron-builder 25 · vanilla ES m
 npm test
 ```
 
-Unit tests cover OCR post-processing (header filtering, row-number stripping, diacritic preservation), image preprocessing, template substitution, session persistence (including corrupt-file recovery), validation rules, `file://` URL building, and diploma HTML rendering.
+Unit tests cover OCR post-processing (header filtering, row-number stripping, diacritic preservation), column and text-row detection, the OCR attempt strategy (driven by a stubbed recogniser, including the case where contrast enhancement makes a page worse and must be rejected), image scaling, template substitution, session persistence and corrupt-file recovery, validation rules, `file://` URL building, and diploma HTML rendering.
 
 ## License
 
