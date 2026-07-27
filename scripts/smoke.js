@@ -47,8 +47,8 @@ const eq = (name, actual, expected) => check(
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function waitFor(run, expression, what) {
-  for (let i = 0; i < 100; i++) {
+async function waitFor(run, expression, what, tries = 100) {
+  for (let i = 0; i < tries; i++) {
     if (await run(expression).catch(() => false)) return;
     await sleep(100);
   }
@@ -278,6 +278,48 @@ app.whenReady().then(async () => {
     eq('deleting a session leaves the other one open',
       (await run('window.api.listSessions()')).length, 1);
     eq('and clears its names', await names(), []);
+
+    // --- a real photo, through OCR ------------------------------------------
+    // The model is not in the repository, so this stage is skipped where it is
+    // missing rather than failing (see "Getting started" in the README).
+    if (!fs.existsSync(path.join(__dirname, '..', 'ocr-data', 'ron.traineddata'))) {
+      console.log('  skip  the OCR import (ocr-data/ron.traineddata is missing)');
+    } else {
+      await run(`(async () => {
+        ${step('kids')};
+        // A printed list, drawn rather than photographed: this checks the
+        // pipeline from a dropped file to names in the table, not Tesseract.
+        const canvas = document.createElement('canvas');
+        canvas.width = 1000;
+        canvas.height = 700;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#000';
+        ctx.font = '48px sans-serif';
+        ['TABEL PARTICIPANTI', '1. POPESCU ANDREI', '2. MARIN VLAD', '3. RADU STEFAN']
+          .forEach((line, i) => ctx.fillText(line, 60, 120 + i * 130));
+        const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+        const file = new File([blob], 'lista-scanata.png', { type: 'image/png' });
+        const data = new DataTransfer();
+        data.items.add(file);
+        document.getElementById('importZone').dispatchEvent(
+          new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }),
+        );
+        return 'ok';
+      })()`);
+      await waitFor(run, '!!document.querySelector(".modal")', 'OCR to finish', 600);
+      await run(`(async () => {
+        document.querySelector('.modal-actions button.primary').click();
+        await new Promise((r) => setTimeout(r, 300));
+        return 'ok';
+      })()`);
+      const read = await names();
+      check('a dropped photo is read and its names land in the list',
+        read.length >= 2, `got ${JSON.stringify(read)}`);
+      check('the photo it was read from is kept',
+        (await run('document.querySelectorAll(".import-entry img").length')) === 1);
+    }
 
     check('nothing was logged as an error', problems.length === 0, problems.join('\n         '));
   } catch (err) {
