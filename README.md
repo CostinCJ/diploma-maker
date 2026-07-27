@@ -111,6 +111,7 @@ electron/
   preload.js         contextBridge API surface exposed to the renderer
 src/
   index.html         Five-step shell (session → kids → teachers → templates → generate)
+  styles.css         The interface around the diploma (the diploma's own CSS is in shared/)
   renderer.js        Step routing and session bootstrap
   ocr/preprocess.js  Scaling, grayscale, contrast stretch, adaptive thresholding
   ocr/columns.js     Column-gutter and text-row detection (pure)

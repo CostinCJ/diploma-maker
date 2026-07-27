@@ -35,7 +35,7 @@ export function createNameTable(container, {
       <button class="small add-row">+ Adaugă rând gol</button>
     </div>
     <p class="muted row-count"></p>
-    <table class="names"><tbody></tbody></table>`;
+    <div class="table-wrap"><table class="names"><tbody></tbody></table></div>`;
 
   const toolbar = container.querySelector('.toolbar');
   const quickAdd = container.querySelector('.quick-add');

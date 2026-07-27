@@ -27,32 +27,34 @@ export function init(state, save) {
   const el = document.getElementById('step-setup');
   el.innerHTML = `
     <h2>Sesiune</h2>
-    <div class="toolbar">
-      <label>Sesiunea deschisă <select id="sessionPicker"></select></label>
-      <button class="small" id="newSession">+ Sesiune nouă</button>
-      <button class="small" id="deleteSession">✕ Șterge sesiunea</button>
+    <div class="card">
+      <div class="toolbar">
+        <label>Sesiunea deschisă <select id="sessionPicker"></select></label>
+        <button class="small" id="newSession">+ Sesiune nouă</button>
+        <button class="small" id="deleteSession">✕ Șterge sesiunea</button>
+      </div>
+      <p class="muted">
+        Fiecare serie are sesiunea ei — listele, pozele și imaginile rămân separate,
+        iar șabloanele modificate se preiau într-o sesiune nouă.
+      </p>
+      <div class="row" style="margin-top:16px">
+        <label>Nume sesiune <input type="text" id="sessionName" placeholder="ex. Seria 1 — iulie"></label>
+        <label>Data început <input type="date" id="startDate"></label>
+        <label>Data sfârșit <input type="date" id="endDate"></label>
+      </div>
     </div>
-    <p class="muted">
-      Fiecare serie are sesiunea ei — listele, pozele și imaginile rămân separate,
-      iar șabloanele modificate se preiau într-o sesiune nouă.
-    </p>
     <div class="row">
-      <label>Nume sesiune <input type="text" id="sessionName" placeholder="ex. Seria 1 — iulie"></label>
-      <label>Data început <input type="date" id="startDate"></label>
-      <label>Data sfârșit <input type="date" id="endDate"></label>
-    </div>
-    <div class="row" style="margin-top:20px">
-      <div>
-        <div class="row">
+      <div class="card" style="flex:1 1 380px">
+        <div class="row asset-row">
           ${ASSETS.map((a) => `
-            <div>
-              <div>${a.label}</div>
+            <div class="asset-card">
+              <div class="asset-label">${a.label}</div>
               <button class="small" data-asset="${a.key}">Alege imagine…</button>
               <img class="asset-thumb" id="thumb-${a.key}" alt="" hidden>
               <div class="error" id="err-${a.key}"></div>
             </div>`).join('')}
         </div>
-        <div class="toolbar" style="margin-top:18px">
+        <div class="toolbar opacity-row">
           <label for="bgOpacity">Cât de tare se vede fotografia de fundal</label>
           <input type="range" id="bgOpacity" min="0" max="100" step="1">
           <output id="bgOpacityValue" class="muted"></output>
@@ -66,10 +68,10 @@ export function init(state, save) {
         <div class="preview-box"><div class="preview-frame" id="setupPreview"></div></div>
       </div>
     </div>
-    <p style="margin-top:24px">
+    <section class="card danger-zone">
       <button class="small" id="deleteEverything">Șterge toate sesiunile</button>
       <span class="muted">De folosit înainte de a preda laptopul: șterge toate numele, pozele și imaginile.</span>
-    </p>`;
+    </section>`;
 
   const nameEl = el.querySelector('#sessionName');
   const startEl = el.querySelector('#startDate');

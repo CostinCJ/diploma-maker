@@ -8,13 +8,26 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <nav id="steps">
-    <button data-step="setup" class="active">1. Sesiune</button>
-    <button data-step="kids">2. Copii</button>
-    <button data-step="teachers">3. Însoțitori</button>
-    <button data-step="templates">4. Șabloane</button>
-    <button data-step="generate">5. Generare</button>
-  </nav>
+  <header id="appbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect class="mk-page" x="5" y="3.5" width="16.5" height="22" rx="2.5" />
+        <rect class="mk-line" x="8.5" y="8" width="9.5" height="1.7" rx=".85" />
+        <rect class="mk-line" x="8.5" y="11.8" width="9.5" height="1.7" rx=".85" />
+        <rect class="mk-line" x="8.5" y="15.6" width="6" height="1.7" rx=".85" />
+        <path class="mk-ribbon" d="M20.4 23.2v6.3l3.6-2 3.6 2v-6.3z" />
+        <circle class="mk-seal" cx="24" cy="21.4" r="5.2" />
+      </svg>
+      <span class="brand-name">Diploma Maker</span>
+    </div>
+    <nav id="steps">
+      <button data-step="setup" class="active"><span class="num">1</span>Sesiune</button>
+      <button data-step="kids"><span class="num">2</span>Copii</button>
+      <button data-step="teachers"><span class="num">3</span>Însoțitori</button>
+      <button data-step="templates"><span class="num">4</span>Șabloane</button>
+      <button data-step="generate"><span class="num">5</span>Generare</button>
+    </nav>
+  </header>
   <main>
     <section id="step-setup" class="step active"></section>
     <section id="step-kids" class="step"></section>

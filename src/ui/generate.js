@@ -8,7 +8,7 @@ export function init(state, save) {
   const el = document.getElementById('step-generate');
   el.innerHTML = `
     <h2>Generare</h2>
-    <div class="row">
+    <div class="row card">
       <label>Lot:
         <select id="batch">
           <option value="all">Toți (copii + însoțitori)</option>

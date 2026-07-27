@@ -24,7 +24,7 @@ export function init(state, save) {
   const el = document.getElementById('step-templates');
   el.innerHTML = `
     <h2>Șabloane</h2>
-    <div>
+    <div class="tabs">
       ${Object.entries(VARIANTS).map(([key, { label }], i) =>
     `<button class="small tpl-tab${i === 0 ? ' active' : ''}" data-variant="${key}">${label}</button>`).join('')}
     </div>
@@ -52,10 +52,10 @@ export function init(state, save) {
     box.innerHTML = '';
     for (const { key, label } of linesFor(current)) {
       const wrap = document.createElement('div');
+      wrap.className = 'field';
       wrap.innerHTML = `<div class="muted">${label}</div>`;
       const input = document.createElement('input');
       input.type = 'text';
-      input.style.width = '420px';
       input.value = state.session.templates[current.tpl][key];
       input.addEventListener('input', () => {
         state.session.templates[current.tpl][key] = input.value;

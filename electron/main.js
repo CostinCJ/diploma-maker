@@ -432,6 +432,9 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 860,
+    // The canvas colour from styles.css, so the window does not flash white
+    // before the page paints.
+    backgroundColor: '#f2f1ec',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       // Electron 33 defaults, pinned explicitly so a future default change
