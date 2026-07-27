@@ -1,5 +1,5 @@
 // src/ui/generate.js
-import { formatDateRo } from '../shared/template.js';
+import { formatDateRo, resolveTemplate } from '../shared/template.js';
 import { renderDiplomaHtml, buildPrintDocument } from '../shared/diplomaHtml.js';
 import { DIPLOMA_CSS } from '../shared/diplomaCss.js';
 import { validateForGeneration } from '../shared/validation.js';
@@ -33,9 +33,11 @@ export function init(state, save) {
   }
 
   function batchEntries(batch) {
-    const clean = (list, tpl) => list.map((n) => n.trim()).filter(Boolean).map((name) => ({ name, tpl }));
-    const kids = clean(state.session.kids, 'kid');
-    const teachers = clean(state.session.teachers, 'teacher');
+    const entries = (list, tpl) => list
+      .map(({ name, gender }) => ({ name: name.trim(), gender, tpl }))
+      .filter((e) => e.name);
+    const kids = entries(state.session.kids, 'kid');
+    const teachers = entries(state.session.teachers, 'teacher');
     return batch === 'kids' ? kids : batch === 'teachers' ? teachers : [...kids, ...teachers];
   }
 
@@ -46,8 +48,8 @@ export function init(state, save) {
       logoLeft: fileUrl(state.session.logoLeft),
       logoRight: fileUrl(state.session.logoRight),
     };
-    return batchEntries(batch).map(({ name, tpl }) =>
-      renderDiplomaHtml(state.session.templates[tpl], name, ctx, assets));
+    return batchEntries(batch).map((entry) =>
+      renderDiplomaHtml(resolveTemplate(state.session.templates, entry), entry.name, ctx, assets));
   }
 
   /** Returns fragments if allowed to proceed, else null. */

@@ -1,6 +1,6 @@
 // tests/session.test.js
 import { describe, it, expect } from 'vitest';
-import { defaultSession, mergeSession } from '../src/shared/session.js';
+import { defaultSession, mergeSession, kidNames, teacherNames } from '../src/shared/session.js';
 
 describe('defaultSession', () => {
   it('has empty dates, assets, lists, and default templates', () => {
@@ -23,10 +23,10 @@ describe('mergeSession', () => {
   it('keeps loaded values and fills missing template lines from defaults', () => {
     const s = mergeSession({ startDate: '2026-07-07', kids: ['A B'], templates: { kid: { title: 'Custom' } } });
     expect(s.startDate).toBe('2026-07-07');
-    expect(s.kids).toEqual(['A B']);
+    expect(kidNames(s)).toEqual(['A B']);
     expect(s.templates.kid.title).toBe('Custom');
     expect(s.templates.kid.awardLine).toBe('SE ACORDĂ ELEVULUI/ELEVEI');
-    expect(s.templates.teacher.awardLine).toBe('SE ACORDĂ D-LUI/D-NEI ÎNSOȚITOR/ÎNSOȚITOARE');
+    expect(s.templates.teacher.awardLineF).toBe('SE ACORDĂ D-NEI ÎNSOȚITOARE');
   });
 
   // A corrupt session.json cannot be repaired from inside the app, so merging
@@ -45,7 +45,43 @@ describe('mergeSession', () => {
   });
 
   it('drops non-string list entries but keeps the real names', () => {
-    expect(mergeSession({ kids: ['A B', null, 7, 'C D'] }).kids).toEqual(['A B', 'C D']);
+    expect(kidNames(mergeSession({ kids: ['A B', null, 7, 'C D'] }))).toEqual(['A B', 'C D']);
+  });
+
+  // Children used to be stored as plain names, before an import could be
+  // removed on its own; those belong to no import and stay put.
+  it('reads a kid list saved as plain names', () => {
+    expect(mergeSession({ kids: ['A B'] }).kids).toEqual([{ name: 'A B', importId: '' }]);
+  });
+
+  it('keeps the import a name came from', () => {
+    const s = mergeSession({
+      kids: [{ name: 'A B', importId: 'i1' }, { name: 'C D' }],
+      imports: [{ id: 'i1', label: 'lista.jpg', kind: 'photo' }],
+    });
+    expect(s.kids).toEqual([{ name: 'A B', importId: 'i1' }, { name: 'C D', importId: '' }]);
+    expect(s.imports).toEqual([{ id: 'i1', label: 'lista.jpg', kind: 'photo' }]);
+  });
+
+  it('drops import records with no id and falls back for the rest', () => {
+    const s = mergeSession({ imports: [{ label: 'x' }, 'nope', { id: 'i2', kind: 'weird' }] });
+    expect(s.imports).toEqual([{ id: 'i2', label: 'i2', kind: 'file' }]);
+  });
+
+  it('keeps a teacher name and the gender their diploma is worded for', () => {
+    const s = mergeSession({ teachers: [{ name: 'C D', gender: 'm' }, { name: 'E F', gender: 'f' }] });
+    expect(s.teachers).toEqual([{ name: 'C D', gender: 'm' }, { name: 'E F', gender: 'f' }]);
+    expect(teacherNames(s)).toEqual(['C D', 'E F']);
+  });
+
+  // Sessions saved before the gendered wording existed hold plain strings.
+  it('reads a teacher list saved as plain names, leaving the gender to be chosen', () => {
+    expect(mergeSession({ teachers: ['C D'] }).teachers).toEqual([{ name: 'C D', gender: '' }]);
+  });
+
+  it('drops teacher entries that are not names and gender values it cannot use', () => {
+    const s = mergeSession({ teachers: [{ name: 'C D', gender: 'x' }, { gender: 'm' }, null, 7] });
+    expect(s.teachers).toEqual([{ name: 'C D', gender: '' }]);
   });
 
   it('ignores a non-object templates field instead of spreading it', () => {
@@ -65,14 +101,30 @@ describe('mergeSession', () => {
     expect(Object.keys(mergeSession({})).sort()).toEqual(Object.keys(defaultSession()).sort());
   });
 
-  it('upgrades wording that is still an old shipped default', () => {
-    // The accompanying-adult line used to be feminine only.
-    const s = mergeSession({ templates: { teacher: { awardLine: 'SE ACORDĂ D-NEI ÎNSOȚITOARE' } } });
-    expect(s.templates.teacher.awardLine).toBe('SE ACORDĂ D-LUI/D-NEI ÎNSOȚITOR/ÎNSOȚITOARE');
+  // The single accompanying-adult line (feminine only, then both genders at
+  // once) is now one line per gender.
+  it('replaces an old shipped award line with the two gendered defaults', () => {
+    for (const old of ['SE ACORDĂ D-NEI ÎNSOȚITOARE', 'SE ACORDĂ D-LUI/D-NEI ÎNSOȚITOR/ÎNSOȚITOARE']) {
+      const s = mergeSession({ templates: { teacher: { awardLine: old } } });
+      expect(s.templates.teacher.awardLineM).toBe('SE ACORDĂ D-LUI ÎNSOȚITOR');
+      expect(s.templates.teacher.awardLineF).toBe('SE ACORDĂ D-NEI ÎNSOȚITOARE');
+      expect(s.templates.teacher.awardLine).toBeUndefined();
+    }
   });
 
-  it('never overwrites wording the user actually edited', () => {
+  it('carries wording the user actually edited into both gendered lines', () => {
     const s = mergeSession({ templates: { teacher: { awardLine: 'SE ACORDĂ DOAMNEI PROFESOARE' } } });
-    expect(s.templates.teacher.awardLine).toBe('SE ACORDĂ DOAMNEI PROFESOARE');
+    expect(s.templates.teacher.awardLineM).toBe('SE ACORDĂ DOAMNEI PROFESOARE');
+    expect(s.templates.teacher.awardLineF).toBe('SE ACORDĂ DOAMNEI PROFESOARE');
+  });
+
+  it('prefers already-split lines over the old one', () => {
+    const s = mergeSession({
+      templates: {
+        teacher: { awardLine: 'vechi', awardLineM: 'SE ACORDĂ DOMNULUI PROFESOR', awardLineF: 'SE ACORDĂ DOAMNEI PROFESOARE' },
+      },
+    });
+    expect(s.templates.teacher.awardLineM).toBe('SE ACORDĂ DOMNULUI PROFESOR');
+    expect(s.templates.teacher.awardLineF).toBe('SE ACORDĂ DOAMNEI PROFESOARE');
   });
 });

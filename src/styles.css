@@ -19,9 +19,41 @@ input[type="text"] { font-size: 14px; padding: 6px 8px; }
 table.names { border-collapse: collapse; }
 table.names td { padding: 2px 6px; }
 table.names input[type="text"] { width: 340px; }
+table.names select { font-size: 14px; padding: 5px 6px; }
+/* A gender still unchosen blocks printing, so it has to be visible at a glance. */
+table.names select.unset { border-color: #c0392b; color: #c0392b; }
 .row { display: flex; gap: 24px; align-items: flex-start; }
 .asset-thumb { max-width: 160px; max-height: 100px; display: block; margin-top: 6px; border: 1px solid #ccc; }
+
+#importPanel { max-width: 460px; }
+.import-entry {
+  display: flex; gap: 10px; margin: 0 0 12px;
+  padding: 8px; border: 1px solid #ddd; border-radius: 6px; background: #fff;
+}
+.import-entry img { max-width: 150px; max-height: 120px; border: 1px solid #ccc; }
+.import-entry figcaption { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .preview-frame { transform: scale(0.4); transform-origin: top left; }
 .preview-box { width: calc(297mm * 0.4); height: calc(210mm * 0.4); overflow: hidden; border: 1px solid #bbb; background: #fff; }
 .error { color: #c0392b; }
 .muted { color: #777; font-size: 13px; }
+
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+#quickAdd { width: 340px; }
+#pasteBox { width: 100%; max-width: 520px; font-family: inherit; font-size: 14px; padding: 6px 8px; }
+
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(20, 26, 33, 0.55);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.modal {
+  background: #fff; border-radius: 8px; padding: 18px 20px;
+  width: 520px; max-width: 100%; max-height: 100%; display: flex; flex-direction: column;
+}
+.modal h3 { margin: 0 0 4px; }
+.import-list {
+  flex: 1 1 auto; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px;
+  padding: 8px; margin: 10px 0; min-height: 80px;
+}
+.import-list label { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.modal-actions button.small { padding: 6px 12px; }

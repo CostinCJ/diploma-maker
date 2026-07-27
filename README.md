@@ -13,11 +13,19 @@ Built as a Windows desktop app (Electron) with a **hard privacy constraint — c
 ## Features
 
 - **Session setup** — start/end dates, a group background photo, and two corner logos, shared by every diploma in the session.
-- **Bulk import via OCR** — drop in phone photos of printed participant lists; names land in an editable, numbered table next to the original photo so every row can be verified by eye.
+- **Five ways to add the children** — whatever form the list already exists in, there is a way in:
+  - **photos of a printed list**, read by offline OCR (button, drag & drop, or Ctrl+V of a screenshot);
+  - **a paste box** — copy the names out of Word, Excel, WhatsApp or an e-mail and press Ctrl+V anywhere on the step;
+  - **list files** — `.docx`, `.xlsx`, `.csv` and `.txt`, by button or dropped on the window;
+  - **typing**, one name per Enter;
+  - **a blank row**, for filling in by hand.
+- **Import preview** — every source ends at the same confirmation screen: what was found, what is already in the list (unticked, but tickable — two children really can share a name), and a one-click undo of the whole import afterwards.
+- **Removable imports** — everything imported is listed on the right (photos with their thumbnail) and can be deleted on its own, taking its names with it. Each name remembers the import it arrived in, so a name corrected after OCR read it still goes when its photo goes, and names typed by hand are never touched. The wrong photo no longer means clearing the session and starting over; the deletion itself is undoable.
+- **Word and Excel without a library** — `.docx` and `.xlsx` are ZIP archives of XML, so they are unpacked with the browser's own `DecompressionStream` and read directly. No dependency, nothing downloaded, and Word's `Ş/Ţ` are folded onto the Romanian `Ș/Ț` so the same child never arrives twice. Header rows, numbering columns and extra columns (age, group) are dropped; a list split into *Nume* / *Prenume* columns is joined back together. Legacy `.doc`/`.xls` are refused with an explanation rather than read as garbage.
 - **Adaptive OCR pipeline** — Tesseract's layout analysis is unstable on low-resolution lists, so no single recipe wins: the app scales the page into the size band Tesseract reads best, detects column gutters, and tries a few segmentation/preprocessing combinations, keeping whichever recovers the most full names. On a 452x640 two-column sample this took the result from 2 names to 120.
 - **Romanian-aware parsing** — diacritics (Ș Ț Ă Î Â) preserved; header rows, row numbers, and OCR junk stripped heuristically. No row is ever silently deleted.
-- **Manual teacher list** — a separate, simple list for the handful of accompanying teachers.
-- **Editable templates** — fixed diploma layout, fully editable wording, with two variants (kid / teacher) and a live preview using real session assets.
+- **Manual teacher list** — a separate, simple list for the handful of accompanying adults. Each one is marked *însoțitor* or *însoțitoare* as their name is typed, so their diploma names one gender instead of printing both forms with a slash. There is no defensible way to guess it, so an unanswered choice blocks printing that batch and says whose it is — the children can still be printed meanwhile.
+- **Editable templates** — fixed diploma layout, fully editable wording, with three tabs (copil / însoțitor / însoțitoare) and a live preview using real session assets. The two adult tabs differ only in the award line; the rest of the text is shared.
 - **Print & export** — print the whole session, kids only, or teachers only; or export the same render to PDF. One landscape A4 diploma per page — preview is the print output.
 - **Persistent sessions** — everything is stored locally in the app data directory and can be reopened later. Saves are written atomically (temp file + rename), and the last edits are flushed synchronously when the window closes, so a crash or a quick Alt+F4 cannot truncate or lose the list.
 

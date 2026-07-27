@@ -10,31 +10,73 @@ export function defaultSession() {
     logoRight: '',
     kids: [],
     teachers: [],
+    imports: [],
     templates: structuredClone(DEFAULT_TEMPLATES),
   };
 }
 
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 const asText = (v, fallback) => (typeof v === 'string' ? v : fallback);
-/** Non-string entries were never names (hand-edited or half-written file) — drop them. */
-const asNameList = (v) => (Array.isArray(v) ? v.filter((n) => typeof n === 'string') : []);
 
-/** Wording that shipped as a default in an earlier version. A session still
- *  carrying one of these verbatim was never edited by the user, so it is safe
- *  to move it to the current default — otherwise an existing session would keep
- *  the outdated line forever. Anything the user actually typed is left alone. */
-const SUPERSEDED_LINES = {
-  // Feminine-only; accompanying adults can be men too.
-  awardLine: ['SE ACORDĂ D-NEI ÎNSOȚITOARE'],
-};
+const IMPORT_KINDS = ['photo', 'file', 'paste'];
+
+/** Every child's name remembers the import it arrived in (empty when typed by
+ *  hand), so that import can be removed later on its own. Sessions written
+ *  before that existed hold plain strings, which become typed-in names. */
+const asKidList = (v) => (Array.isArray(v) ? v : [])
+  .map((k) => {
+    if (typeof k === 'string') return { name: k, importId: '' };
+    if (!isObject(k) || typeof k.name !== 'string') return null;
+    return { name: k.name, importId: asText(k.importId, '') };
+  })
+  .filter(Boolean);
+
+const asImportList = (v) => (Array.isArray(v) ? v : [])
+  .filter((i) => isObject(i) && typeof i.id === 'string' && i.id)
+  .map((i) => ({
+    id: i.id,
+    label: asText(i.label, i.id),
+    kind: IMPORT_KINDS.includes(i.kind) ? i.kind : 'file',
+  }));
+
+/** Names only, for the checks and lists that do not care where they came from. */
+export const kidNames = (session) => session.kids.map((k) => k.name);
+
+/** Teachers carry the gender their diploma is worded for. Sessions written
+ *  before that existed hold plain strings, which become ungendered entries —
+ *  the gender is then asked for once, before printing. */
+const asTeacherList = (v) => (Array.isArray(v) ? v : [])
+  .map((t) => {
+    if (typeof t === 'string') return { name: t, gender: '' };
+    if (!isObject(t) || typeof t.name !== 'string') return null;
+    return { name: t.name, gender: t.gender === 'm' || t.gender === 'f' ? t.gender : '' };
+  })
+  .filter(Boolean);
+
+/** Names only, for the checks and lists that do not care about gender. */
+export const teacherNames = (session) => session.teachers.map((t) => t.name);
+
+/** Wording that shipped as a default of the single teacher award line, before
+ *  it was split into one line per gender. A session still carrying one of these
+ *  verbatim was never edited by the user, so it is dropped for the current
+ *  defaults; a line the user actually wrote is kept for both genders, for them
+ *  to split by hand — it is the only place their wording still exists. */
+const SUPERSEDED_TEACHER_AWARD_LINES = [
+  'SE ACORDĂ D-NEI ÎNSOȚITOARE',                  // feminine only
+  'SE ACORDĂ D-LUI/D-NEI ÎNSOȚITOR/ÎNSOȚITOARE',  // both genders on one diploma
+];
+
+function migrateTeacherTemplate(loaded) {
+  if (!isObject(loaded)) return loaded;
+  const old = asText(loaded.awardLine, '');
+  if (!old || SUPERSEDED_TEACHER_AWARD_LINES.includes(old)) return loaded;
+  return { awardLineM: old, awardLineF: old, ...loaded };
+}
 
 function mergeTemplate(base, loaded) {
   if (!isObject(loaded)) return base;
   const out = { ...base };
-  for (const key of Object.keys(base)) {
-    const value = asText(loaded[key], base[key]);
-    out[key] = SUPERSEDED_LINES[key]?.includes(value) ? base[key] : value;
-  }
+  for (const key of Object.keys(base)) out[key] = asText(loaded[key], base[key]);
   return out;
 }
 
@@ -52,11 +94,12 @@ export function mergeSession(loaded) {
     background: asText(loaded.background, base.background),
     logoLeft: asText(loaded.logoLeft, base.logoLeft),
     logoRight: asText(loaded.logoRight, base.logoRight),
-    kids: asNameList(loaded.kids),
-    teachers: asNameList(loaded.teachers),
+    kids: asKidList(loaded.kids),
+    teachers: asTeacherList(loaded.teachers),
+    imports: asImportList(loaded.imports),
     templates: {
       kid: mergeTemplate(base.templates.kid, templates.kid),
-      teacher: mergeTemplate(base.templates.teacher, templates.teacher),
+      teacher: mergeTemplate(base.templates.teacher, migrateTeacherTemplate(templates.teacher)),
     },
   };
 }

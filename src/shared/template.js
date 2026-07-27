@@ -17,10 +17,22 @@ export const DEFAULT_TEMPLATES = {
     participationLine: 'pentru participarea la TABERE APUSENI',
     dateLine: 'în perioada {start} - {end}',
   },
+  // Accompanying adults are named one by one, so their diploma names one
+  // gender instead of printing both forms separated by a slash. Everything
+  // except the award line is shared between the two.
   teacher: {
     title: 'Diplomă de participare',
-    awardLine: 'SE ACORDĂ D-LUI/D-NEI ÎNSOȚITOR/ÎNSOȚITOARE',
+    awardLineM: 'SE ACORDĂ D-LUI ÎNSOȚITOR',
+    awardLineF: 'SE ACORDĂ D-NEI ÎNSOȚITOARE',
     participationLine: 'pentru participarea la TABERE APUSENI',
     dateLine: 'în perioada {start} - {end}',
   },
 };
+
+/** The template to render for one entry. A teacher's gender picks the award
+ *  line here, so everything downstream sees an ordinary single-line template. */
+export function resolveTemplate(templates, { tpl, gender }) {
+  if (tpl !== 'teacher') return templates[tpl];
+  const { awardLineM, awardLineF, ...rest } = templates.teacher;
+  return { ...rest, awardLine: gender === 'm' ? awardLineM : awardLineF };
+}
