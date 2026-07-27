@@ -16,6 +16,7 @@
     "vitest": "^2.0.0"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "tesseract.js": "^5.1.0"
   },
   "build": {
@@ -27,6 +28,13 @@
     "nsis": {
       "artifactName": "DiplomaMaker-Setup-${version}.exe"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "CostinCJ",
+        "repo": "diploma-maker"
+      }
+    ],
     "files": [
       "electron/**",
       "src/**",

@@ -380,6 +380,30 @@ app.whenReady().then(async () => {
         (await run('document.querySelectorAll(".import-entry img").length')) === 1);
     }
 
+    // --- updates -----------------------------------------------------------
+    // The check itself only runs in a packaged app, so what is exercised here
+    // is everything after it: the status crossing the preload bridge and the
+    // strip it draws. It must stay out of the way until there is news, and
+    // must never start a download on its own.
+    check('the update strip is out of the way on a normal start',
+      await run('document.getElementById("updateBar").hidden'));
+
+    win.webContents.send('update:status', { state: 'available', version: '9.9.9' });
+    await waitFor(run, '!document.getElementById("updateBar").hidden', 'the update strip');
+    check('a new version is announced with the version in it',
+      (await run('document.querySelector("#updateBar .update-text").textContent')).includes('9.9.9'));
+    check('and offers the download instead of starting one',
+      (await run('document.querySelector("#updateBar button.primary").textContent')) === 'Descarcă');
+
+    await run('document.querySelector("#updateBar .update-close").click()');
+    check('it can be dismissed', await run('document.getElementById("updateBar").hidden'));
+
+    win.webContents.send('update:status', { state: 'ready', version: '9.9.9' });
+    await waitFor(run, '!document.getElementById("updateBar").hidden', 'the downloaded update');
+    eq('a downloaded update still gets to ask for the restart',
+      await run('document.querySelector("#updateBar button.primary").textContent'),
+      'Repornește și instalează');
+
     check('nothing was logged as an error', problems.length === 0, problems.join('\n         '));
   } catch (err) {
     check('the run finished', false, err.stack || String(err));

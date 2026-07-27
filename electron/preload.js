@@ -17,4 +17,10 @@ contextBridge.exposeInMainWorld('api', {
   ocrRecognize: (pngDataUrl) => ipcRenderer.invoke('ocr:recognize', pngDataUrl),
   printBatch: (html) => ipcRenderer.invoke('print:batch', html),
   exportPdf: (html) => ipcRenderer.invoke('print:pdf', html),
+  // Updates. `onUpdateStatus` only ever hands the renderer the plain status
+  // object — never the event, which would carry the sender with it.
+  updateStatus: () => ipcRenderer.invoke('update:status'),
+  onUpdateStatus: (cb) => ipcRenderer.on('update:status', (_e, status) => cb(status)),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
 });

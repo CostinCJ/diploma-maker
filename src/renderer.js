@@ -1,5 +1,6 @@
 // src/renderer.js
 import { mergeSession } from './shared/session.js';
+import { initUpdateBar } from './ui/updateBar.js';
 
 export const state = { sessionId: null, session: null };
 
@@ -73,6 +74,7 @@ export async function useSession({ id, session }) {
 
 async function main() {
   initNav();
+  initUpdateBar();
   await useSession(await window.api.loadSession());
 }
 

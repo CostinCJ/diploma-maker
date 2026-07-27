@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { randomUUID } = require('crypto');
+const { initUpdater } = require('./updater');
 
 // Chromium renders <input type="date"> in its UI locale, so on an en-US build a
 // Romanian guide was shown mm/dd/yyyy — American order on the one screen where
@@ -481,5 +482,6 @@ app.whenReady().then(() => {
   ensureCurrent();      // migrates a pre-multi-session session.json
   purgeUnreferenced();  // photos and images a crash left behind
   createWindow();
+  initUpdater(() => mainWindow);
 });
 app.on('window-all-closed', () => app.quit());

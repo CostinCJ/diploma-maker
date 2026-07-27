@@ -105,6 +105,25 @@ body {
 #steps button.active .num { background: var(--accent); color: #fff; }
 #steps button:focus-visible { outline-color: #fff; }
 
+/* The update strip: a note under the app bar, in the gold of the seal so it
+   reads as news rather than as a warning. Hidden unless there is something to
+   announce, and it never covers the step underneath. */
+#updateBar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 10px 20px;
+  background: #fbf3d9; border-bottom: 1px solid #e8d79a;
+  color: #4a3a08; font-size: 13.5px;
+}
+#updateBar[hidden] { display: none; }
+.update-text { flex: 1 1 320px; }
+#updateBar button.primary { padding: 7px 14px; font-size: 13.5px; }
+button.update-close {
+  width: 28px; height: 28px; flex: none; padding: 0;
+  border: 0; border-radius: 50%; background: transparent;
+  color: #6d5714; font-size: 18px; line-height: 1; cursor: pointer;
+}
+button.update-close:hover { background: rgba(109, 87, 20, .12); }
+
 /* ------------------------------------------------------------- layout --- */
 
 main { max-width: 1180px; margin: 0 auto; padding: 26px 24px 64px; }

@@ -54,14 +54,38 @@ jobs:
             || { echo "::error::model missing from packaged app"; exit 1; }
           ls -la dist/*.exe
 
+      # The auto-updater reads latest.yml from the release to learn what the
+      # newest version is, and app-update.yml (written into the package from
+      # the `publish` block) to know where to look. Without either of them an
+      # installed app never sees the release — and it would fail silently, on
+      # the camp laptop, months later. Checked here instead.
+      - name: Verify the update metadata
+        shell: bash
+        run: |
+          test -f "dist/latest.yml" \
+            || { echo "::error::latest.yml missing — the installed app cannot find this release"; exit 1; }
+          test -f "dist/win-unpacked/resources/app-update.yml" \
+            || { echo "::error::app-update.yml missing from packaged app — updates are off"; exit 1; }
+          cat dist/latest.yml
+
       - uses: actions/upload-artifact@v4
         with:
           name: DiplomaMaker-Windows-installer
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/latest.yml
 
+      # latest.yml and the .blockmap go up with the installer: the first is how
+      # an installed app finds this version, the second lets it download only
+      # the parts that changed. A release published without them leaves every
+      # existing install on its old version, quietly.
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.exe --generate-notes --title "$GITHUB_REF_NAME"
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/*.exe dist/*.exe.blockmap dist/latest.yml \
+            --generate-notes --title "$GITHUB_REF_NAME"

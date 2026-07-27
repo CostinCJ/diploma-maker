@@ -30,6 +30,7 @@ Built as a Windows desktop app (Electron) with a **hard privacy constraint — c
 - **Every line set by hand** — each of the five lines on the sheet (title, award line, name, participation line, dates) carries its own size in points and a bold and italic switch, changed next to the line and shown in the preview at once. The name line has no wording to edit — it comes from the list — but it is the one whose size matters most for long compound names. Only what you actually change is written onto the page: a line left alone stays exactly as the stylesheet has always printed it, so old sessions come back unchanged.
 - **Print & export** — print the whole session, kids only, or teachers only; or export the same render to PDF. One landscape A4 diploma per page — preview is the print output.
 - **One session per shift** — a camp runs several series, so sessions live side by side: name them, switch between them from the session picker, and start a new one without destroying the last. Each keeps its own names, photos and images; a new session carries over only the wording and the line settings you edited. Deleting a session deletes its photos with it, and *Șterge toate sesiunile* wipes everything at once for handing the laptop back.
+- **Updates without a download page** — the installed app notices a new release and offers it in a strip under the app bar, with the version named. It never downloads anything by itself and never interrupts the work: a laptop with no internet says nothing, and a dismissed announcement stays dismissed. See [Staying up to date](#staying-up-to-date).
 - **Persistent by default** — everything is stored locally in the app data directory and reopens where you left it. Saves are written atomically (temp file + rename), and the last edits are flushed synchronously when the window closes, so a crash or a quick Alt+F4 cannot truncate or lose the list. A session saved by an older version (a single `session.json`, plain names, the both-genders award line, no per-line settings) is migrated on first run.
 
 ## Privacy by design
@@ -37,17 +38,27 @@ Built as a Windows desktop app (Electron) with a **hard privacy constraint — c
 This app handles minors' names, so privacy is a functional requirement, not a nice-to-have:
 
 - The Romanian Tesseract model (`ron.traineddata`, tessdata_best) is **bundled in the installer**. Nothing is ever downloaded at runtime — if the model file is missing, OCR fails loudly rather than silently falling back to a CDN.
-- No `fetch`/HTTP code exists anywhere in the app. It runs correctly with networking disabled.
+- Nothing about a session — a name, a photo, a diploma — ever leaves the laptop. The one thing that does use the network is the update check described below: it asks GitHub what the newest released version is, sends nothing but that request, and downloads nothing until you say so. The app runs correctly with networking disabled; a failed check is silent by design.
 - The renderer runs behind a `contextBridge` preload with a strict Content-Security-Policy (`default-src 'self'`); the print window is sandboxed.
 - The temporary print document containing the names is unique per job and deleted immediately after printing or PDF export; any document left behind by a crash is purged at the next startup.
 - Replacing the group photo or a logo deletes the previous copy from the app data directory instead of leaving it behind. Imported list photos are held to the same rule: removing the import deletes its photo, clearing the session deletes all of them, and any left behind by a crash are purged at the next startup.
 
 ## Installing on the camp laptop
 
-Download the latest `DiplomaMaker-Setup-<version>.exe` from the [releases page](https://github.com/CostinCJ/diploma-maker/releases) and run it. Nothing else is needed — Node.js is not required, the OCR model is inside the installer, and the app never touches the network afterwards.
+Download the latest `DiplomaMaker-Setup-<version>.exe` from the [releases page](https://github.com/CostinCJ/diploma-maker/releases) and run it. Nothing else is needed — Node.js is not required, and the OCR model is inside the installer.
 
 - The installer is **not code-signed**, so Windows shows *"Windows protected your PC"* on first run. Choose **More info → Run anyway**. (Signing requires a paid certificate.)
 - It installs per-user, so **no administrator rights** are needed.
+
+### Staying up to date
+
+The installed app checks the releases page for a newer version a few seconds after it starts, and that is all it does on its own:
+
+- **Nothing is downloaded until you ask.** A new version shows up as a strip under the app bar with the version number and a *Descarcă* button; the installer is a few tens of MB, and a camp laptop is often on a phone hotspot. You can dismiss the strip and keep working.
+- Once the download finishes, *Repornește și instalează* applies it immediately; otherwise it is installed when you close the app, so the next day starts on the new version.
+- **No internet is a normal state, not an error.** A check that cannot reach GitHub says nothing at all — the strip only ever appears when there is something to act on. A download you started and that then fails does report why.
+- Updates need the app to have been *installed*: a build run from a folder without the installer has no updater in it.
+- To keep a laptop on the version it was set up with, start the app with `DIPLOME_NO_UPDATE_CHECK=1` — no check is made at all.
 - Before camp, do one full dry run on that laptop: import a photo, check the names, and **print one real page** — A4 landscape with zero margins is the setting most likely to be wrong on an unfamiliar printer.
 - Session data (including participants' names and the imported list photos) lives in `%APPDATA%\Diploma Maker\` — `sessions/` for the lists, `photos/` and `assets/` for the images. That is what to clear if the laptop is shared or handed back; *Șterge toate sesiunile*, at the bottom of the session step, does it from inside the app.
 
@@ -59,6 +70,10 @@ Tag a version and push it — [the workflow](.github/workflows/release.yml) buil
 npm version minor -m "v%s"   # or edit "version" in package.json by hand
 git push origin main --follow-tags
 ```
+
+Three files go up with each release, and all three matter: the installer, `latest.yml` (how an installed app learns this version exists) and the `.blockmap` (which lets it download only the changed parts). The workflow fails the build if `latest.yml` or the packaged `app-update.yml` is missing, because an update that is merely *not announced* would otherwise look exactly like a release that went fine — and would only be noticed months later, on a laptop nobody is watching.
+
+Because the update check reads the releases page, a **draft or pre-release is not offered** to installed apps: publish the release for it to reach anyone.
 
 Building locally with `npm run dist` works on Windows; on Linux or macOS it needs Wine, which is exactly why the release build runs on GitHub.
 
@@ -109,6 +124,7 @@ To verify a packaged build loads the bundled OCR model, run the app with `DIPLOM
 ```
 electron/
   main.js            Main process: session storage, asset copying, OCR worker, print/PDF
+  updater.js         The one place that talks to the network: the update check
   preload.js         contextBridge API surface exposed to the renderer
 src/
   index.html         Five-step shell (session → kids → teachers → templates → generate)
@@ -122,7 +138,7 @@ src/
                      nameTable.js (the editable list), importSources.js (every
                      way names arrive), importPreview.js (the confirm screen),
                      diplomaPreview.js (stylesheet, assets and dates for the
-                     on-screen diplomas)
+                     on-screen diplomas), updateBar.js (the update strip)
 tests/               Vitest unit tests for the pure shared logic
 scripts/smoke.js     End-to-end run of the real app (npm run smoke)
 ocr-data/            Bundled Tesseract model (gitignored — see Getting started)
@@ -133,7 +149,7 @@ The `shared/` modules and the pure parts of `ocr/` (`columns.js`, `readNames.js`
 
 ## Tech stack
 
-Electron 33 · tesseract.js 5 · Vitest 2 · electron-builder 25 · vanilla ES modules (no framework, no bundler)
+Electron 33 · tesseract.js 5 · Vitest 2 · electron-builder 25 · electron-updater 6 · vanilla ES modules (no framework, no bundler)
 
 ## Testing
 
@@ -142,9 +158,9 @@ npm test        # pure logic, fast
 npm run smoke   # the real app, end to end
 ```
 
-Unit tests cover OCR post-processing (header filtering, row-number stripping, diacritic preservation), column and text-row detection, the OCR attempt strategy (driven by a stubbed recogniser, including the case where contrast enhancement makes a page worse and must be rejected), image scaling, template substitution, per-line sizing and emphasis (including that the defaults still match the diploma stylesheet), session persistence and corrupt-file recovery, validation rules, `file://` URL building, and diploma HTML rendering.
+Unit tests cover OCR post-processing (header filtering, row-number stripping, diacritic preservation), column and text-row detection, the OCR attempt strategy (driven by a stubbed recogniser, including the case where contrast enhancement makes a page worse and must be rejected), image scaling, template substitution, per-line sizing and emphasis (including that the defaults still match the diploma stylesheet), session persistence and corrupt-file recovery, validation rules, `file://` URL building, diploma HTML rendering, and what the update strip is allowed to say in each state (including that it stays silent while checking and when there is nothing new).
 
-`npm run smoke` covers what unit tests cannot reach: it launches the real main process against a throwaway profile directory, drives the five steps of the UI, and checks the results — a pasted list losing its header and row numbers, an imported photo written into the app data directory, the whole session coming back after a reload, removing an import taking its names with it (and its photo once the undo is given up), an undecided teacher blocking generation by name, the right award line reaching the rendered diploma, and a line's chosen size and emphasis reaching the pages about to be printed while a line left alone stays with the stylesheet. It starts from a session file in the *old* single-session format, so the upgrade path is covered too, and it finishes by dropping a rendered list image on the window and letting the real OCR pipeline read it (skipped, with a note, where `ocr-data/ron.traineddata` is missing). Every check prints a line and the run exits non-zero on failure, so it is the thing to run before cutting a release.
+`npm run smoke` covers what unit tests cannot reach: it launches the real main process against a throwaway profile directory, drives the five steps of the UI, and checks the results — a pasted list losing its header and row numbers, an imported photo written into the app data directory, the whole session coming back after a reload, removing an import taking its names with it (and its photo once the undo is given up), an undecided teacher blocking generation by name, the right award line reaching the rendered diploma, and a line's chosen size and emphasis reaching the pages about to be printed while a line left alone stays with the stylesheet. It also pushes an update status at the real window and checks the strip that appears: hidden on a normal start, naming the new version, offering the download rather than starting one, and still asking for the restart once a download is done. It starts from a session file in the *old* single-session format, so the upgrade path is covered too, and it finishes by dropping a rendered list image on the window and letting the real OCR pipeline read it (skipped, with a note, where `ocr-data/ron.traineddata` is missing). Every check prints a line and the run exits non-zero on failure, so it is the thing to run before cutting a release.
 
 ## License
 
