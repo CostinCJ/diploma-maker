@@ -1,7 +1,7 @@
 // src/renderer.js
 import { mergeSession } from './shared/session.js';
 
-export const state = { session: null, photos: [] }; // photos: {name, url} for review panel (not persisted)
+export const state = { session: null };
 
 let saveTimer = null;
 export function save() {

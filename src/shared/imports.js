@@ -9,8 +9,8 @@ const NO_IMPORT = '';
 /** Register a source before its names are known. Photos are registered as soon
  *  as they are read, so a photo whose names were all rejected is still listed
  *  (and still removable) instead of sitting there unaccounted for. */
-export function registerImport(session, { label, kind }, id = crypto.randomUUID()) {
-  return { id, imports: [...session.imports, { id, label, kind }] };
+export function registerImport(session, { label, kind, photo = '' }, id = crypto.randomUUID()) {
+  return { id, imports: [...session.imports, { id, label, kind, photo }] };
 }
 
 export function appendNames(session, id, names) {

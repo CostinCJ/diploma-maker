@@ -37,6 +37,7 @@ const asImportList = (v) => (Array.isArray(v) ? v : [])
     id: i.id,
     label: asText(i.label, i.id),
     kind: IMPORT_KINDS.includes(i.kind) ? i.kind : 'file',
+    photo: asText(i.photo, ''), // absolute path in the app data directory
   }));
 
 /** Names only, for the checks and lists that do not care where they came from. */

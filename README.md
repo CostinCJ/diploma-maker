@@ -21,6 +21,7 @@ Built as a Windows desktop app (Electron) with a **hard privacy constraint — c
   - **a blank row**, for filling in by hand.
 - **Import preview** — every source ends at the same confirmation screen: what was found, what is already in the list (unticked, but tickable — two children really can share a name), and a one-click undo of the whole import afterwards.
 - **Removable imports** — everything imported is listed on the right (photos with their thumbnail) and can be deleted on its own, taking its names with it. Each name remembers the import it arrived in, so a name corrected after OCR read it still goes when its photo goes, and names typed by hand are never touched. The wrong photo no longer means clearing the session and starting over; the deletion itself is undoable.
+- **The photos stay with the session** — imported list photos are copied into the app data directory, so reopening the app the next day still shows what each name should be checked against. They are deleted as soon as their import is removed (once its undo is given up), when the session is cleared, and at startup if a crash left any behind.
 - **Word and Excel without a library** — `.docx` and `.xlsx` are ZIP archives of XML, so they are unpacked with the browser's own `DecompressionStream` and read directly. No dependency, nothing downloaded, and Word's `Ş/Ţ` are folded onto the Romanian `Ș/Ț` so the same child never arrives twice. Header rows, numbering columns and extra columns (age, group) are dropped; a list split into *Nume* / *Prenume* columns is joined back together. Legacy `.doc`/`.xls` are refused with an explanation rather than read as garbage.
 - **Adaptive OCR pipeline** — Tesseract's layout analysis is unstable on low-resolution lists, so no single recipe wins: the app scales the page into the size band Tesseract reads best, detects column gutters, and tries a few segmentation/preprocessing combinations, keeping whichever recovers the most full names. On a 452x640 two-column sample this took the result from 2 names to 120.
 - **Romanian-aware parsing** — diacritics (Ș Ț Ă Î Â) preserved; header rows, row numbers, and OCR junk stripped heuristically. No row is ever silently deleted.
@@ -37,7 +38,7 @@ This app handles minors' names, so privacy is a functional requirement, not a ni
 - No `fetch`/HTTP code exists anywhere in the app. It runs correctly with networking disabled.
 - The renderer runs behind a `contextBridge` preload with a strict Content-Security-Policy (`default-src 'self'`); the print window is sandboxed.
 - The temporary print document containing the names is unique per job and deleted immediately after printing or PDF export; any document left behind by a crash is purged at the next startup.
-- Replacing the group photo or a logo deletes the previous copy from the app data directory instead of leaving it behind.
+- Replacing the group photo or a logo deletes the previous copy from the app data directory instead of leaving it behind. Imported list photos are held to the same rule: removing the import deletes its photo, clearing the session deletes all of them, and any left behind by a crash are purged at the next startup.
 
 ## Installing on the camp laptop
 
@@ -96,6 +97,7 @@ Recognition quality is dominated by how much detail the photo actually contains 
 | --- | --- |
 | `npm start` | Launch the app in development |
 | `npm test` | Run the unit test suite (Vitest) |
+| `npm run smoke` | Drive the real app end to end in a throwaway profile (Electron) |
 | `npm run dist` | Build the Windows NSIS installer via electron-builder |
 
 To verify a packaged build loads the bundled OCR model, run the app with `DIPLOME_OCR_SELFTEST=1`; it runs the real OCR code path and prints `OCR_SELFTEST_OK` or `OCR_SELFTEST_FAIL`, then exits.
@@ -115,6 +117,7 @@ src/
   shared/            Pure logic: name parsing, templates, validation, file URLs, diploma HTML/CSS
   ui/                One module per step
 tests/               Vitest unit tests for the pure shared logic
+scripts/smoke.js     End-to-end run of the real app (npm run smoke)
 ocr-data/            Bundled Tesseract model (gitignored — see Getting started)
 docs/                Design spec and implementation plan
 ```
@@ -128,10 +131,13 @@ Electron 33 · tesseract.js 5 · Vitest 2 · electron-builder 25 · vanilla ES m
 ## Testing
 
 ```bash
-npm test
+npm test        # pure logic, fast
+npm run smoke   # the real app, end to end
 ```
 
 Unit tests cover OCR post-processing (header filtering, row-number stripping, diacritic preservation), column and text-row detection, the OCR attempt strategy (driven by a stubbed recogniser, including the case where contrast enhancement makes a page worse and must be rejected), image scaling, template substitution, session persistence and corrupt-file recovery, validation rules, `file://` URL building, and diploma HTML rendering.
+
+`npm run smoke` covers what unit tests cannot reach: it launches the real main process against a throwaway profile directory, drives the five steps of the UI, and checks the results — a pasted list losing its header and row numbers, an imported photo written into the app data directory, the whole session coming back after a reload, removing an import taking its names with it (and its photo once the undo is given up), an undecided teacher blocking generation by name, and the right award line reaching the rendered diploma. Every check prints a line and the run exits non-zero on failure, so it is the thing to run before cutting a release.
 
 ## License
 

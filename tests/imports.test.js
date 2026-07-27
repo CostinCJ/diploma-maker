@@ -9,8 +9,13 @@ describe('registerImport', () => {
     const s = sessionWith();
     const { id, imports } = registerImport(s, { label: 'lista.jpg', kind: 'photo' }, 'i1');
     expect(id).toBe('i1');
-    expect(imports).toEqual([{ id: 'i1', label: 'lista.jpg', kind: 'photo' }]);
+    expect(imports).toEqual([{ id: 'i1', label: 'lista.jpg', kind: 'photo', photo: '' }]);
     expect(s.imports).toEqual([]); // the caller decides when to commit it
+  });
+
+  it('carries the stored photo path when there is one', () => {
+    const { imports } = registerImport(sessionWith(), { label: 'l.jpg', kind: 'photo', photo: '/data/i1.jpg' }, 'i1');
+    expect(imports[0].photo).toBe('/data/i1.jpg');
   });
 
   it('mints an id when none is given', () => {
@@ -38,7 +43,7 @@ describe('removeImport', () => {
       { name: 'CORECTAT', importId: 'i1' },
       { name: 'FROM FILE', importId: 'i2' },
     ],
-    [{ id: 'i1', label: 'lista.jpg', kind: 'photo' }, { id: 'i2', label: 'lista.docx', kind: 'file' }],
+    [{ id: 'i1', label: 'lista.jpg', kind: 'photo', photo: '/data/i1.jpg' }, { id: 'i2', label: 'lista.docx', kind: 'file', photo: '' }],
   );
 
   // The whole point: a photo of the wrong group can be undone on its own,
@@ -46,7 +51,7 @@ describe('removeImport', () => {
   it('removes the source and every name still carried from it', () => {
     const { kids, imports } = removeImport(session(), 'i1');
     expect(kids).toEqual([{ name: 'TYPED', importId: '' }, { name: 'FROM FILE', importId: 'i2' }]);
-    expect(imports).toEqual([{ id: 'i2', label: 'lista.docx', kind: 'file' }]);
+    expect(imports).toEqual([{ id: 'i2', label: 'lista.docx', kind: 'file', photo: '' }]);
   });
 
   // A name is usually corrected after OCR read it; it still belongs to that

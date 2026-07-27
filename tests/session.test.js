@@ -60,12 +60,17 @@ describe('mergeSession', () => {
       imports: [{ id: 'i1', label: 'lista.jpg', kind: 'photo' }],
     });
     expect(s.kids).toEqual([{ name: 'A B', importId: 'i1' }, { name: 'C D', importId: '' }]);
-    expect(s.imports).toEqual([{ id: 'i1', label: 'lista.jpg', kind: 'photo' }]);
+    expect(s.imports).toEqual([{ id: 'i1', label: 'lista.jpg', kind: 'photo', photo: '' }]);
+  });
+
+  it('keeps the stored photo of a photo import', () => {
+    const s = mergeSession({ imports: [{ id: 'i1', label: 'lista.jpg', kind: 'photo', photo: 'C:/data/photos/i1.jpg' }] });
+    expect(s.imports[0].photo).toBe('C:/data/photos/i1.jpg');
   });
 
   it('drops import records with no id and falls back for the rest', () => {
     const s = mergeSession({ imports: [{ label: 'x' }, 'nope', { id: 'i2', kind: 'weird' }] });
-    expect(s.imports).toEqual([{ id: 'i2', label: 'i2', kind: 'file' }]);
+    expect(s.imports).toEqual([{ id: 'i2', label: 'i2', kind: 'file', photo: '' }]);
   });
 
   it('keeps a teacher name and the gender their diploma is worded for', () => {

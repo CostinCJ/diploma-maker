@@ -59,8 +59,9 @@ export function init(state, save) {
     if (!confirm('Ștergi toate datele sesiunii curente (date, poze, nume)?\nȘabloanele modificate rămân.')) return;
     const templates = state.session.templates; // keep the user's edited wording
     state.session = { ...defaultSession(), templates };
-    state.photos.forEach((p) => URL.revokeObjectURL(p.url));
-    state.photos = [];
+    // The imported list photos go with it — they are pictures of a children's
+    // list, and clearing the session has to mean clearing them too.
+    await window.api.purgePhotos([]);
     save();
     await initSections();
   });

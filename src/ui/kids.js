@@ -5,6 +5,7 @@ import { parseTextList, normalizeName } from '../shared/importList.js';
 import { namesFromFile, SUPPORTED_EXTENSIONS } from '../shared/importFile.js';
 import { registerImport, appendNames, removeImport, countFromImport } from '../shared/imports.js';
 import { countedNoun } from '../shared/roText.js';
+import { fileUrl } from '../shared/fileUrl.js';
 import { showImportPreview } from './importPreview.js';
 
 const DOC_ACCEPT = SUPPORTED_EXTENSIONS.map((e) => '.' + e).join(',');
@@ -63,16 +64,16 @@ export function init(state, save) {
   let undo = null;
 
   function rememberFor(label) {
-    undo = { label, kids: [...state.session.kids], imports: [...state.session.imports], photos: [...state.photos] };
+    undo = { label, kids: [...state.session.kids], imports: [...state.session.imports] };
   }
 
   function forgetUndo() {
-    // Photos dropped by the change being forgotten can only now be released.
-    for (const photo of undo?.photos ?? []) {
-      if (!state.photos.includes(photo)) URL.revokeObjectURL(photo.url);
-    }
+    // Until the undo is given up, a removed import's photo has to stay on disk
+    // — that is the only copy. Once it cannot come back, the file goes.
+    const wasUndoable = undo !== null;
     undo = null;
     undoBtn.hidden = true;
+    if (wasUndoable) window.api.purgePhotos(state.session.imports.map((i) => i.id));
   }
 
   function render() {
@@ -121,13 +122,12 @@ export function init(state, save) {
 
     for (const entry of state.session.imports) {
       const count = countFromImport(state.session.kids, entry.id);
-      const photo = state.photos.find((p) => p.importId === entry.id);
       const fig = document.createElement('figure');
       fig.className = 'import-entry';
 
-      if (photo) {
+      if (entry.photo) {
         const img = document.createElement('img');
-        img.src = photo.url;
+        img.src = fileUrl(entry.photo);
         fig.appendChild(img);
       }
 
@@ -137,14 +137,6 @@ export function init(state, save) {
       const note = document.createElement('div');
       note.className = 'muted';
       note.textContent = count ? countedNoun(count, 'nume în listă', 'nume în listă') : 'niciun nume în listă';
-      if (entry.kind === 'photo' && !photo) {
-        // Photos are not saved with the session yet, so a reopened session can
-        // still remove the import but no longer show what it looked like.
-        const gone = document.createElement('div');
-        gone.className = 'muted';
-        gone.textContent = 'poza nu mai e disponibilă';
-        note.appendChild(gone);
-      }
       const remove = document.createElement('button');
       remove.className = 'small';
       remove.textContent = '✕ Șterge importul';
@@ -157,7 +149,6 @@ export function init(state, save) {
         const { kids, imports } = removeImport(state.session, entry.id);
         state.session.kids = kids;
         state.session.imports = imports;
-        state.photos = state.photos.filter((p) => p.importId !== entry.id);
         save();
         render();
         renderImports();
@@ -201,10 +192,9 @@ export function init(state, save) {
 
   undoBtn.addEventListener('click', () => {
     if (!undo) return;
-    const { kids, imports, photos } = undo;
+    const { kids, imports } = undo;
     state.session.kids = kids;
     state.session.imports = imports;
-    state.photos = photos;
     undo = null;
     refresh();
   });
@@ -246,7 +236,15 @@ export function init(state, save) {
           rememberFor(`importul „${file.name}”`);
           const { id, imports } = registerImport(state.session, { label: file.name, kind: 'photo' });
           state.session.imports = imports;
-          state.photos.push({ importId: id, name: file.name, url: URL.createObjectURL(file) });
+          // Keep the photo with the session: the list is checked against it,
+          // and that check often continues on another day.
+          const stored = await window.api.storePhoto({
+            id,
+            ext: /\.[a-z0-9]+$/i.exec(file.name)?.[0]?.toLowerCase() ?? '.png',
+            bytes: await file.arrayBuffer(),
+          });
+          if (stored.ok) imports[imports.length - 1].photo = stored.path;
+          else console.error('[kids] photo not stored:', stored.error);
           refresh();
           if (names.length) await offerNames(names, file.name, 'photo', id);
         } catch (err) {

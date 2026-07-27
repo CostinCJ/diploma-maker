@@ -83,6 +83,62 @@ ipcMain.handle('asset:pick', async (_e, kind) => {
   return dest;
 });
 
+// --- Imported list photos ---
+// The photos names were read from are what the guide checks the list against,
+// so they are kept with the session: a verification left half-done at night can
+// be picked up in the morning. One file per import, named after the import id.
+function photosDir() {
+  const dir = path.join(app.getPath('userData'), 'photos');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+const PHOTO_ID_RE = /^[\w-]{1,64}$/;
+const PHOTO_EXT_RE = /^\.(png|jpe?g|webp|bmp|gif)$/i;
+
+ipcMain.handle('photo:store', (_e, { id, ext, bytes } = {}) => {
+  try {
+    // The id becomes a filename, so it may not carry a path of its own.
+    if (!PHOTO_ID_RE.test(String(id)) || !PHOTO_EXT_RE.test(String(ext))) {
+      throw new Error('Poză invalidă.');
+    }
+    const dest = path.join(photosDir(), id + String(ext).toLowerCase());
+    fs.writeFileSync(dest, Buffer.from(bytes));
+    return { ok: true, path: dest };
+  } catch (err) {
+    console.error('[photo]', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+/** Drop every stored photo that no import refers to any more. These are photos
+ *  of a children's list, so a removed import must not leave its copy behind. */
+function purgePhotos(keepIds) {
+  const keep = new Set((Array.isArray(keepIds) ? keepIds : []).filter((id) => typeof id === 'string'));
+  try {
+    const dir = photosDir();
+    for (const f of fs.readdirSync(dir)) {
+      if (!keep.has(path.parse(f).name)) { try { fs.unlinkSync(path.join(dir, f)); } catch {} }
+    }
+  } catch {}
+}
+
+ipcMain.handle('photo:purge', (_e, keepIds) => {
+  purgePhotos(keepIds);
+  return true;
+});
+
+/** Import ids of the session as it was last saved — used at startup, where a
+ *  crash may have left photos of imports that were never written to disk. */
+function savedImportIds() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(sessionFile(), 'utf8'));
+    return Array.isArray(saved.imports) ? saved.imports.map((i) => i && i.id).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
 // --- OCR (fully local: bundled Romanian model, no network) ---
 // NOTE: `langPath` must NOT be used here. Inside an Electron-spawned worker
 // thread, tesseract.js env detection (is-electron) reports 'electron', not
@@ -296,6 +352,7 @@ app.whenReady().then(() => {
     mainWindow.focus();
   });
   purgeStalePrintDocs();
+  purgePhotos(savedImportIds());
   createWindow();
 });
 app.on('window-all-closed', () => app.quit());

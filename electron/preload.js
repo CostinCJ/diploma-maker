@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('api', {
   // where an async invoke would be dropped before it reaches the main process.
   saveSessionSync: (session) => ipcRenderer.sendSync('session:save-sync', session),
   pickAsset: (kind) => ipcRenderer.invoke('asset:pick', kind),
+  storePhoto: (photo) => ipcRenderer.invoke('photo:store', photo),
+  purgePhotos: (keepIds) => ipcRenderer.invoke('photo:purge', keepIds),
   ocrRecognize: (pngDataUrl) => ipcRenderer.invoke('ocr:recognize', pngDataUrl),
   printBatch: (html) => ipcRenderer.invoke('print:batch', html),
   exportPdf: (html) => ipcRenderer.invoke('print:pdf', html),
