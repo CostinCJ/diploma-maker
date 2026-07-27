@@ -8,9 +8,20 @@ const { randomUUID } = require('crypto');
 // date order matters most. Must be set before the app is ready.
 app.commandLine.appendSwitch('lang', 'ro');
 
-function sessionFile() {
-  return path.join(app.getPath('userData'), 'session.json');
+// --- Sessions ---
+// A camp runs several shifts, so sessions are kept side by side, one file each,
+// with a pointer to whichever is open. Starting the next one must never mean
+// destroying the last one: those lists are the only record of who was there.
+const ID_RE = /^[\w-]{1,64}$/;
+
+function sessionsDir() {
+  const dir = path.join(app.getPath('userData'), 'sessions');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
 }
+
+const sessionPath = (id) => path.join(sessionsDir(), id + '.json');
+const currentFile = () => path.join(app.getPath('userData'), 'current.json');
 
 function assetsDir() {
   const dir = path.join(app.getPath('userData'), 'assets');
@@ -18,35 +29,93 @@ function assetsDir() {
   return dir;
 }
 
-ipcMain.handle('session:load', () => {
+function readSession(id) {
+  if (!ID_RE.test(String(id))) return null;
   try {
-    return JSON.parse(fs.readFileSync(sessionFile(), 'utf8'));
+    return JSON.parse(fs.readFileSync(sessionPath(id), 'utf8'));
   } catch {
-    return null; // first run or corrupt file → renderer falls back to defaults
+    return null; // missing or corrupt → the caller falls back
   }
-});
+}
+
+function listSessionIds() {
+  try {
+    return fs.readdirSync(sessionsDir()).filter((f) => f.endsWith('.json')).map((f) => path.basename(f, '.json'));
+  } catch {
+    return [];
+  }
+}
+
+const allSessions = () => listSessionIds()
+  .map((id) => ({ id, data: readSession(id) }))
+  .filter((s) => s.data && typeof s.data === 'object');
 
 // Write to a temp file and rename over the target: rename is atomic, so a crash
-// or power loss mid-write can never leave a truncated session.json behind (that
+// or power loss mid-write can never leave a truncated session file behind (that
 // would read back as corrupt and silently drop the whole participant list).
-function writeSession(session) {
-  const target = sessionFile();
+function writeSession(id, session) {
+  if (!ID_RE.test(String(id))) throw new Error('Sesiune invalidă.');
+  const target = sessionPath(id);
   const tmp = target + '.' + process.pid + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(session, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify({ ...session, updatedAt: new Date().toISOString() }, null, 2));
   fs.renameSync(tmp, target);
 }
 
-ipcMain.handle('session:save', (_e, session) => {
-  writeSession(session);
+function currentId() {
+  try {
+    return JSON.parse(fs.readFileSync(currentFile(), 'utf8')).id;
+  } catch {
+    return null;
+  }
+}
+
+function setCurrentId(id) {
+  fs.writeFileSync(currentFile(), JSON.stringify({ id }));
+}
+
+/** Sessions used to be a single session.json. Move it into the new layout on
+ *  first run, so an upgrade opens on the same list it was left on. */
+function migrateLegacySession() {
+  const legacy = path.join(app.getPath('userData'), 'session.json');
+  if (listSessionIds().length || !fs.existsSync(legacy)) return;
+  try {
+    const id = randomUUID();
+    writeSession(id, JSON.parse(fs.readFileSync(legacy, 'utf8')));
+    setCurrentId(id);
+    fs.unlinkSync(legacy);
+  } catch (err) {
+    console.error('[session] could not migrate session.json', err);
+  }
+}
+
+/** The id of the open session, creating one if this is a first run (or if the
+ *  pointer names a session that is no longer there). */
+function ensureCurrent() {
+  migrateLegacySession();
+  const pointed = currentId();
+  if (pointed && readSession(pointed)) return pointed;
+  const [first] = listSessionIds();
+  const id = first ?? randomUUID();
+  if (!first) writeSession(id, {}); // empty: the renderer fills in the defaults
+  setCurrentId(id);
+  return id;
+}
+
+const loaded = (id) => ({ id, session: readSession(id) });
+
+ipcMain.handle('session:load', () => loaded(ensureCurrent()));
+
+ipcMain.handle('session:save', (_e, id, session) => {
+  writeSession(id, session);
   return true;
 });
 
 // Synchronous twin, used only from the renderer's `beforeunload` handler: a
 // debounced save still in flight would otherwise be dropped when the window
 // closes, losing the last few hundred milliseconds of edits.
-ipcMain.on('session:save-sync', (e, session) => {
+ipcMain.on('session:save-sync', (e, id, session) => {
   try {
-    writeSession(session);
+    writeSession(id, session);
     e.returnValue = true;
   } catch (err) {
     console.error('[session] sync save failed', err);
@@ -54,9 +123,54 @@ ipcMain.on('session:save-sync', (e, session) => {
   }
 });
 
+const countOf = (list) => (Array.isArray(list) ? list.length : 0);
+
+ipcMain.handle('session:list', () => allSessions()
+  .map(({ id, data }) => ({
+    id,
+    name: typeof data.name === 'string' ? data.name : '',
+    startDate: typeof data.startDate === 'string' ? data.startDate : '',
+    endDate: typeof data.endDate === 'string' ? data.endDate : '',
+    kids: countOf(data.kids),
+    teachers: countOf(data.teachers),
+    updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : '',
+  }))
+  .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+
+ipcMain.handle('session:open', (_e, id) => {
+  if (!readSession(id)) return null;
+  setCurrentId(id);
+  return loaded(id);
+});
+
+// `seed` carries over what is not specific to one shift — the edited wording.
+ipcMain.handle('session:create', (_e, seed) => {
+  const id = randomUUID();
+  writeSession(id, seed && typeof seed === 'object' ? seed : {});
+  setCurrentId(id);
+  return loaded(id);
+});
+
+ipcMain.handle('session:delete', (_e, id) => {
+  if (ID_RE.test(String(id))) { try { fs.unlinkSync(sessionPath(id)); } catch {} }
+  purgeUnreferenced();
+  return loaded(ensureCurrent());
+});
+
+// What the camp laptop needs before it is handed back: every name, every photo.
+ipcMain.handle('session:delete-all', () => {
+  for (const id of listSessionIds()) { try { fs.unlinkSync(sessionPath(id)); } catch {} }
+  purgeUnreferenced();
+  return loaded(ensureCurrent());
+});
+
 // kind: 'background' | 'logoLeft' | 'logoRight'. Copies into userData so the
-// session keeps working even if the original file moves. Returns absolute path or null.
-ipcMain.handle('asset:pick', async (_e, kind) => {
+// session keeps working even if the original file moves. `previous` is the copy
+// this one replaces, deleted here — the group photo of a children's camp must
+// not stay behind, and with several sessions open in turn only the exact file
+// being replaced may go (a pattern would have deleted another shift's picture).
+// Returns absolute path or null.
+ipcMain.handle('asset:pick', async (_e, kind, previous) => {
   if (!['background', 'logoLeft', 'logoRight'].includes(kind)) return null;
   const { canceled, filePaths } = await dialog.showOpenDialog({
     title: 'Alege imaginea',
@@ -65,20 +179,14 @@ ipcMain.handle('asset:pick', async (_e, kind) => {
   });
   if (canceled || !filePaths[0]) return null;
   const src = filePaths[0];
-  const dir = assetsDir();
   // Unique filename per pick. A stable name (background.png) kept resolving to
   // the same file:// URL, so after replacing an image Chromium served the old
   // one from cache — the thumbnail worked around it with a ?t= query, but the
   // preview and the printed diploma still showed the previous picture.
-  const dest = path.join(dir, `${kind}-${Date.now()}${path.extname(src).toLowerCase()}`);
+  const dest = path.join(assetsDir(), `${kind}-${randomUUID()}${path.extname(src).toLowerCase()}`);
   fs.copyFileSync(src, dest);
-  // Previous copies would otherwise stay in userData forever — for the group
-  // photo of a children's camp that is a privacy leak, not just clutter.
-  for (const f of fs.readdirSync(dir)) {
-    // `kind + '.'` also matches copies left by earlier versions of the app.
-    if ((f.startsWith(kind + '-') || f.startsWith(kind + '.')) && path.join(dir, f) !== dest) {
-      try { fs.unlinkSync(path.join(dir, f)); } catch {}
-    }
+  if (typeof previous === 'string' && previous !== dest && path.dirname(previous) === assetsDir()) {
+    try { fs.unlinkSync(previous); } catch {}
   }
   return dest;
 });
@@ -111,32 +219,47 @@ ipcMain.handle('photo:store', (_e, { id, ext, bytes } = {}) => {
   }
 });
 
-/** Drop every stored photo that no import refers to any more. These are photos
- *  of a children's list, so a removed import must not leave its copy behind. */
-function purgePhotos(keepIds) {
-  const keep = new Set((Array.isArray(keepIds) ? keepIds : []).filter((id) => typeof id === 'string'));
-  try {
-    const dir = photosDir();
-    for (const f of fs.readdirSync(dir)) {
-      if (!keep.has(path.parse(f).name)) { try { fs.unlinkSync(path.join(dir, f)); } catch {} }
+/** Drop every stored photo and copied image that no session refers to any more.
+ *  These are pictures of a children's list, so a removed import — or a deleted
+ *  session — must not leave its copy behind.
+ *
+ *  `live` lets the open session speak for itself: its own edits may not have
+ *  reached disk yet, and reading its stale file would resurrect a photo the
+ *  guide has just removed (or delete one they have just added). Every *other*
+ *  session is read from disk, so switching shifts never costs a photo. */
+function purgeUnreferenced(live = null) {
+  const photoIds = new Set(live?.photoIds?.filter((id) => typeof id === 'string') ?? []);
+  const assets = new Set(live?.assets?.filter((p) => typeof p === 'string') ?? []);
+  for (const { id, data } of allSessions()) {
+    if (live && id === live.id) continue;
+    for (const entry of Array.isArray(data.imports) ? data.imports : []) {
+      if (entry && typeof entry.id === 'string') photoIds.add(entry.id);
     }
-  } catch {}
+    for (const key of ['background', 'logoLeft', 'logoRight']) {
+      if (typeof data[key] === 'string' && data[key]) assets.add(data[key]);
+    }
+  }
+  const sweep = (dir, keeps) => {
+    try {
+      for (const f of fs.readdirSync(dir)) {
+        if (!keeps(f)) { try { fs.unlinkSync(path.join(dir, f)); } catch {} }
+      }
+    } catch {}
+  };
+  sweep(photosDir(), (f) => photoIds.has(path.parse(f).name));
+  sweep(assetsDir(), (f) => assets.has(path.join(assetsDir(), f)));
 }
 
-ipcMain.handle('photo:purge', (_e, keepIds) => {
-  purgePhotos(keepIds);
+ipcMain.handle('photo:purge', (_e, id, keepIds) => {
+  purgeUnreferenced({ id, photoIds: Array.isArray(keepIds) ? keepIds : [], assets: currentAssets(id) });
   return true;
 });
 
-/** Import ids of the session as it was last saved — used at startup, where a
- *  crash may have left photos of imports that were never written to disk. */
-function savedImportIds() {
-  try {
-    const saved = JSON.parse(fs.readFileSync(sessionFile(), 'utf8'));
-    return Array.isArray(saved.imports) ? saved.imports.map((i) => i && i.id).filter(Boolean) : [];
-  } catch {
-    return [];
-  }
+/** The open session's images, read from its file — the renderer only reports
+ *  the imports it is authoritative about. */
+function currentAssets(id) {
+  const data = readSession(id) ?? {};
+  return ['background', 'logoLeft', 'logoRight'].map((k) => data[k]).filter((p) => typeof p === 'string' && p);
 }
 
 // --- OCR (fully local: bundled Romanian model, no network) ---
@@ -352,7 +475,8 @@ app.whenReady().then(() => {
     mainWindow.focus();
   });
   purgeStalePrintDocs();
-  purgePhotos(savedImportIds());
+  ensureCurrent();      // migrates a pre-multi-session session.json
+  purgeUnreferenced();  // photos and images a crash left behind
   createWindow();
 });
 app.on('window-all-closed', () => app.quit());

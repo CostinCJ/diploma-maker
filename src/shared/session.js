@@ -3,6 +3,7 @@ import { DEFAULT_TEMPLATES } from './template.js';
 
 export function defaultSession() {
   return {
+    name: '', // what this shift is called in the session picker
     startDate: '',
     endDate: '',
     background: '',
@@ -90,6 +91,7 @@ export function mergeSession(loaded) {
   if (!isObject(loaded)) return base;
   const templates = isObject(loaded.templates) ? loaded.templates : {};
   return {
+    name: asText(loaded.name, base.name),
     startDate: asText(loaded.startDate, base.startDate),
     endDate: asText(loaded.endDate, base.endDate),
     background: asText(loaded.background, base.background),

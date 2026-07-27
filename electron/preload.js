@@ -2,13 +2,18 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   loadSession: () => ipcRenderer.invoke('session:load'),
-  saveSession: (session) => ipcRenderer.invoke('session:save', session),
+  saveSession: (id, session) => ipcRenderer.invoke('session:save', id, session),
   // Blocking on purpose: only for the last write while the window is closing,
   // where an async invoke would be dropped before it reaches the main process.
-  saveSessionSync: (session) => ipcRenderer.sendSync('session:save-sync', session),
-  pickAsset: (kind) => ipcRenderer.invoke('asset:pick', kind),
+  saveSessionSync: (id, session) => ipcRenderer.sendSync('session:save-sync', id, session),
+  listSessions: () => ipcRenderer.invoke('session:list'),
+  openSession: (id) => ipcRenderer.invoke('session:open', id),
+  createSession: (seed) => ipcRenderer.invoke('session:create', seed),
+  deleteSession: (id) => ipcRenderer.invoke('session:delete', id),
+  deleteAllSessions: () => ipcRenderer.invoke('session:delete-all'),
+  pickAsset: (kind, previous) => ipcRenderer.invoke('asset:pick', kind, previous),
   storePhoto: (photo) => ipcRenderer.invoke('photo:store', photo),
-  purgePhotos: (keepIds) => ipcRenderer.invoke('photo:purge', keepIds),
+  purgePhotos: (sessionId, keepIds) => ipcRenderer.invoke('photo:purge', sessionId, keepIds),
   ocrRecognize: (pngDataUrl) => ipcRenderer.invoke('ocr:recognize', pngDataUrl),
   printBatch: (html) => ipcRenderer.invoke('print:batch', html),
   exportPdf: (html) => ipcRenderer.invoke('print:pdf', html),

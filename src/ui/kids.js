@@ -45,7 +45,7 @@ export function init(state, save) {
     const wasUndoable = undo !== null;
     undo = null;
     showUndo();
-    if (wasUndoable) window.api.purgePhotos(state.session.imports.map((i) => i.id));
+    if (wasUndoable) window.api.purgePhotos(state.sessionId, state.session.imports.map((i) => i.id));
   }
 
   const table = createNameTable(el.querySelector('#kidTable'), {

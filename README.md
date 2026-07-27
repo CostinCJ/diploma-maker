@@ -28,7 +28,8 @@ Built as a Windows desktop app (Electron) with a **hard privacy constraint — c
 - **Manual teacher list** — the same editable list the children get (numbering, reordering, add-a-name on Enter), for the handful of accompanying adults. Each one is marked *însoțitor* or *însoțitoare* as their name is typed, so their diploma names one gender instead of printing both forms with a slash. There is no defensible way to guess it, so an unanswered choice blocks printing that batch and says whose it is — the children can still be printed meanwhile.
 - **Editable templates** — fixed diploma layout, fully editable wording, with three tabs (copil / însoțitor / însoțitoare) and a live preview using real session assets. The two adult tabs differ only in the award line; the rest of the text is shared.
 - **Print & export** — print the whole session, kids only, or teachers only; or export the same render to PDF. One landscape A4 diploma per page — preview is the print output.
-- **Persistent sessions** — everything is stored locally in the app data directory and can be reopened later. Saves are written atomically (temp file + rename), and the last edits are flushed synchronously when the window closes, so a crash or a quick Alt+F4 cannot truncate or lose the list.
+- **One session per shift** — a camp runs several series, so sessions live side by side: name them, switch between them from the session picker, and start a new one without destroying the last. Each keeps its own names, photos and images; a new session carries over only the wording you edited. Deleting a session deletes its photos with it, and *Șterge toate sesiunile* wipes everything at once for handing the laptop back.
+- **Persistent by default** — everything is stored locally in the app data directory and reopens where you left it. Saves are written atomically (temp file + rename), and the last edits are flushed synchronously when the window closes, so a crash or a quick Alt+F4 cannot truncate or lose the list. A session saved by an older version (a single `session.json`, plain names, the both-genders award line) is migrated on first run.
 
 ## Privacy by design
 
@@ -47,7 +48,7 @@ Download the latest `DiplomaMaker-Setup-<version>.exe` from the [releases page](
 - The installer is **not code-signed**, so Windows shows *"Windows protected your PC"* on first run. Choose **More info → Run anyway**. (Signing requires a paid certificate.)
 - It installs per-user, so **no administrator rights** are needed.
 - Before camp, do one full dry run on that laptop: import a photo, check the names, and **print one real page** — A4 landscape with zero margins is the setting most likely to be wrong on an unfamiliar printer.
-- Session data (including participants' names) lives in `%APPDATA%\Diploma Maker\`. That is what to clear if the laptop is shared or handed back; *Sesiune nouă — șterge tot* does it from inside the app.
+- Session data (including participants' names and the imported list photos) lives in `%APPDATA%\Diploma Maker\` — `sessions/` for the lists, `photos/` and `assets/` for the images. That is what to clear if the laptop is shared or handed back; *Șterge toate sesiunile*, at the bottom of the session step, does it from inside the app.
 
 ### Cutting a release
 

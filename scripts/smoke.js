@@ -17,6 +17,20 @@ const path = require('path');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'diploma-smoke-'));
 app.setPath('userData', profile);
 
+// A session left by an older version: one file, names as plain strings, the
+// teacher award line naming both genders. Starting on it exercises the
+// migration every existing install will go through on upgrade.
+fs.writeFileSync(path.join(profile, 'session.json'), JSON.stringify({
+  kids: ['MIGRAT ION'],
+  teachers: ['MARIN ELENA'],
+  templates: { teacher: { awardLine: 'SE ACORDĂ D-LUI/D-NEI ÎNSOȚITOR/ÎNSOȚITOARE' } },
+}));
+
+const currentSession = () => JSON.parse(fs.readFileSync(
+  path.join(profile, 'sessions', JSON.parse(fs.readFileSync(path.join(profile, 'current.json'), 'utf8')).id + '.json'),
+  'utf8',
+));
+
 // The real main process: same window, same handlers, same session file.
 require('../electron/main.js');
 
@@ -81,8 +95,9 @@ app.whenReady().then(async () => {
       await new Promise((r) => setTimeout(r, 400));
       return 'ok';
     })()`);
-    check('the dates are written to the session file',
-      JSON.parse(fs.readFileSync(path.join(profile, 'session.json'), 'utf8')).startDate === '2026-07-07');
+    check('the dates are written to the session file', currentSession().startDate === '2026-07-07');
+    check('a session.json from an older version was migrated',
+      !fs.existsSync(path.join(profile, 'session.json')));
 
     // --- adding children ---------------------------------------------------
     await run(`(async () => {
@@ -95,7 +110,8 @@ app.whenReady().then(async () => {
       await new Promise((r) => setTimeout(r, 100));
       return 'ok';
     })()`);
-    eq('a pasted list drops its header and row numbers', await names(), ['Popescu Ion', 'Ionescu Maria']);
+    eq('the names of an older session are still there, with the pasted ones',
+      await names(), ['MIGRAT ION', 'Popescu Ion', 'Ionescu Maria']);
     check('the repeated name was left unticked', (await run('window.__alerts.length')) === 0);
 
     await run(`(async () => {
@@ -105,7 +121,7 @@ app.whenReady().then(async () => {
       await new Promise((r) => setTimeout(r, 50));
       return 'ok';
     })()`);
-    eq('a typed name is added and tidied', (await names())[2], 'radu eric');
+    eq('a typed name is added and tidied', (await names())[3], 'radu eric');
 
     // --- a photo import, kept with the session -----------------------------
     const photoId = await run(`(async () => {
@@ -130,7 +146,8 @@ app.whenReady().then(async () => {
     await waitFor(run, '!!document.querySelector("#kidTable tbody")', 'the UI to come back');
     await run(`(() => { window.__confirm = true; window.__alerts = []; window.confirm = () => window.__confirm; window.alert = (m) => window.__alerts.push(m); return 'ok'; })()`);
     await run(step('kids'));
-    eq('the list survives a restart', await names(), ['Popescu Ion', 'Ionescu Maria', 'radu eric', 'GHIȚĂ ELENA']);
+    eq('the list survives a restart', await names(),
+      ['MIGRAT ION', 'Popescu Ion', 'Ionescu Maria', 'radu eric', 'GHIȚĂ ELENA']);
     eq('the imports survive with it',
       await run('[...document.querySelectorAll(".import-entry figcaption > div")].map((d) => d.textContent)'),
       ['lista lipită', '2 nume în listă', 'lista.png', '1 nume în listă']);
@@ -143,15 +160,16 @@ app.whenReady().then(async () => {
       await new Promise((r) => setTimeout(r, 100));
       return 'ok';
     })()`);
-    eq('removing an import takes its names with it', await names(), ['Popescu Ion', 'Ionescu Maria', 'radu eric']);
+    eq('removing an import takes its names with it', await names(),
+      ['MIGRAT ION', 'Popescu Ion', 'Ionescu Maria', 'radu eric']);
     check('the removal can still be undone', await run('!document.getElementById("undoBtn").hidden'));
     check('its photo is kept while undo is still possible',
       fs.existsSync(path.join(profile, 'photos', photoId + '.png')));
 
     await run(`(async () => {
-      const first = document.querySelector('#kidTable tbody input');
-      first.value = 'POPESCU ION-CORECTAT';
-      first.dispatchEvent(new Event('input'));
+      const row = document.querySelectorAll('#kidTable tbody input')[1];
+      row.value = 'POPESCU ION-CORECTAT';
+      row.dispatchEvent(new Event('input'));
       await new Promise((r) => setTimeout(r, 400));
       return 'ok';
     })()`);
@@ -161,7 +179,6 @@ app.whenReady().then(async () => {
     // --- teachers, one gender per diploma ----------------------------------
     await run(`(async () => {
       ${step('teachers')};
-      document.querySelector('#teacherTable .add-row').click();
       const row = document.querySelector('#teacherTable tbody tr');
       row.querySelector('input').value = 'MARIN ELENA';
       row.querySelector('input').dispatchEvent(new Event('input'));
@@ -214,10 +231,53 @@ app.whenReady().then(async () => {
       await new Promise((r) => setTimeout(r, 150));
       return 'ok';
     })()`);
-    eq('one page per child', await run('document.querySelectorAll("#genPreview .diploma").length'), 3);
+    eq('one page per child', await run('document.querySelectorAll("#genPreview .diploma").length'), 4);
     eq('and the names on them are the corrected ones',
       await run('[...document.querySelectorAll("#genPreview .diploma .name")].map((p) => p.textContent)'),
-      ['POPESCU ION-CORECTAT', 'Ionescu Maria', 'radu eric']);
+      ['MIGRAT ION', 'POPESCU ION-CORECTAT', 'Ionescu Maria', 'radu eric']);
+
+    // --- a second session, side by side ------------------------------------
+    await run(`(async () => {
+      ${step('setup')};
+      const name = document.getElementById('sessionName');
+      name.value = 'Seria 1';
+      name.dispatchEvent(new Event('input'));
+      await new Promise((r) => setTimeout(r, 400));
+      document.getElementById('newSession').click();
+      await new Promise((r) => setTimeout(r, 400));
+      return 'ok';
+    })()`);
+    eq('a new session starts empty', await names(), []);
+    eq('and does not disturb the first one',
+      (await run('window.api.listSessions()')).map((s) => `${s.name}:${s.kids}`).sort(),
+      [':0', 'Seria 1:4']);
+    eq('the edited wording comes along',
+      await run(`(async () => {
+        const { state } = await import('./renderer.js');
+        return state.session.templates.teacher.awardLineF;
+      })()`),
+      'SE ACORDĂ D-NEI ÎNSOȚITOARE');
+
+    await run(`(async () => {
+      ${step('setup')};
+      const picker = document.getElementById('sessionPicker');
+      picker.value = [...picker.options].find((o) => o.textContent.startsWith('Seria 1')).value;
+      picker.dispatchEvent(new Event('change'));
+      await new Promise((r) => setTimeout(r, 500));
+      return 'ok';
+    })()`);
+    eq('switching back brings the first list with it', await names(),
+      ['MIGRAT ION', 'POPESCU ION-CORECTAT', 'Ionescu Maria', 'radu eric']);
+
+    await run(`(async () => {
+      ${step('setup')};
+      document.getElementById('deleteSession').click();
+      await new Promise((r) => setTimeout(r, 500));
+      return 'ok';
+    })()`);
+    eq('deleting a session leaves the other one open',
+      (await run('window.api.listSessions()')).length, 1);
+    eq('and clears its names', await names(), []);
 
     check('nothing was logged as an error', problems.length === 0, problems.join('\n         '));
   } catch (err) {

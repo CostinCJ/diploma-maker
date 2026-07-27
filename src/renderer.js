@@ -1,15 +1,24 @@
 // src/renderer.js
 import { mergeSession } from './shared/session.js';
 
-export const state = { session: null };
+export const state = { sessionId: null, session: null };
 
 let saveTimer = null;
 export function save() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    window.api.saveSession(state.session);
+    window.api.saveSession(state.sessionId, state.session);
   }, 300);
+}
+
+/** Write anything still pending right now. Used before switching sessions: a
+ *  debounced save would otherwise land in whichever session is open by then. */
+export async function flushSave() {
+  if (!saveTimer) return;
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  await window.api.saveSession(state.sessionId, state.session);
 }
 
 // Names typed in the last 300ms would otherwise be lost when the window closes.
@@ -17,7 +26,7 @@ window.addEventListener('beforeunload', () => {
   if (!saveTimer || !state.session) return;
   clearTimeout(saveTimer);
   saveTimer = null;
-  window.api.saveSessionSync(state.session);
+  window.api.saveSessionSync(state.sessionId, state.session);
 });
 
 function initNav() {
@@ -54,10 +63,17 @@ export async function initSections() {
   }
 }
 
-async function main() {
-  state.session = mergeSession(await window.api.loadSession());
-  initNav();
+/** Put a session on screen. `loadedSession` is what the main process handed
+ *  back — every step is rebuilt from it. */
+export async function useSession({ id, session }) {
+  state.sessionId = id;
+  state.session = mergeSession(session);
   await initSections();
+}
+
+async function main() {
+  initNav();
+  await useSession(await window.api.loadSession());
 }
 
 main();
