@@ -7,6 +7,7 @@
   "scripts": {
     "start": "electron .",
     "test": "vitest run",
+    "smoke": "electron scripts/smoke.js",
     "dist": "electron-builder --win"
   },
   "devDependencies": {
