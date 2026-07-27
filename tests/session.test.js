@@ -89,6 +89,17 @@ describe('mergeSession', () => {
     expect(s.teachers).toEqual([{ name: 'C D', gender: '' }]);
   });
 
+  it('keeps how strongly the group photo shows through', () => {
+    expect(mergeSession({ backgroundOpacity: 0.15 }).backgroundOpacity).toBe(0.15);
+  });
+
+  it('clamps or ignores a strength it cannot use', () => {
+    expect(mergeSession({ backgroundOpacity: 4 }).backgroundOpacity).toBe(1);
+    expect(mergeSession({ backgroundOpacity: -2 }).backgroundOpacity).toBe(0);
+    expect(mergeSession({ backgroundOpacity: '0.2' }).backgroundOpacity).toBe(0.5);
+    expect(mergeSession({ backgroundOpacity: NaN }).backgroundOpacity).toBe(0.5);
+  });
+
   it('ignores a non-object templates field instead of spreading it', () => {
     const s = mergeSession({ templates: 'broken' });
     expect(s.templates.kid.title).toBe(defaultSession().templates.kid.title);

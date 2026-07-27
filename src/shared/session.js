@@ -7,6 +7,7 @@ export function defaultSession() {
     startDate: '',
     endDate: '',
     background: '',
+    backgroundOpacity: 0.5, // how strongly the group photo shows through
     logoLeft: '',
     logoRight: '',
     kids: [],
@@ -18,6 +19,9 @@ export function defaultSession() {
 
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 const asText = (v, fallback) => (typeof v === 'string' ? v : fallback);
+const asFraction = (v, fallback) => (typeof v === 'number' && Number.isFinite(v)
+  ? Math.min(1, Math.max(0, v))
+  : fallback);
 
 const IMPORT_KINDS = ['photo', 'file', 'paste'];
 
@@ -95,6 +99,7 @@ export function mergeSession(loaded) {
     startDate: asText(loaded.startDate, base.startDate),
     endDate: asText(loaded.endDate, base.endDate),
     background: asText(loaded.background, base.background),
+    backgroundOpacity: asFraction(loaded.backgroundOpacity, base.backgroundOpacity),
     logoLeft: asText(loaded.logoLeft, base.logoLeft),
     logoRight: asText(loaded.logoRight, base.logoRight),
     kids: asKidList(loaded.kids),

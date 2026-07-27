@@ -6,14 +6,22 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function img(cls, src) {
-  return src ? `<img class="${cls}" src="${esc(src)}" alt="" />` : '';
+function img(cls, src, style = '') {
+  return src ? `<img class="${cls}" src="${esc(src)}"${style ? ` style="${esc(style)}"` : ''} alt="" />` : '';
+}
+
+/** The group photo sits behind the text, so how strongly it shows through is a
+ *  per-session choice — a dark photo needs a lighter hand than a pale one. The
+ *  stylesheet only provides the fallback for a session that has no preference. */
+function backgroundStyle(opacity) {
+  const value = Number(opacity);
+  return Number.isFinite(value) ? `opacity:${Math.min(1, Math.max(0, value))}` : '';
 }
 
 /** One diploma as an HTML fragment. `assets` values are file:// URLs (or ''). */
 export function renderDiplomaHtml(tpl, name, ctx, assets) {
   return `<div class="diploma">
-  ${img('bg', assets.background)}
+  ${img('bg', assets.background, backgroundStyle(assets.backgroundOpacity))}
   ${img('logo left', assets.logoLeft)}
   ${img('logo right', assets.logoRight)}
   <div class="content">

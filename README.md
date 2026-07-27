@@ -12,7 +12,7 @@ Built as a Windows desktop app (Electron) with a **hard privacy constraint — c
 
 ## Features
 
-- **Session setup** — start/end dates, a group background photo, and two corner logos, shared by every diploma in the session.
+- **Session setup** — start/end dates, a group background photo, and two corner logos, shared by every diploma in the session. A slider sets how strongly the group photo shows through, with a full diploma preview updating as it is dragged: a dark photo needs a lighter hand than a pale one, and the only way to judge it is against the text it sits behind.
 - **Five ways to add the children** — whatever form the list already exists in, there is a way in:
   - **photos of a printed list**, read by offline OCR (button, drag & drop, or Ctrl+V of a screenshot);
   - **a paste box** — copy the names out of Word, Excel, WhatsApp or an e-mail and press Ctrl+V anywhere on the step;
@@ -116,9 +116,11 @@ src/
   ocr/columns.js     Column-gutter and text-row detection (pure)
   ocr/readNames.js   Picks the best of several OCR attempts (pure)
   shared/            Pure logic: name parsing, templates, validation, file URLs, diploma HTML/CSS
-  ui/                One module per step, plus the pieces two steps share:
+  ui/                One module per step, plus the pieces several steps share:
                      nameTable.js (the editable list), importSources.js (every
-                     way names arrive), importPreview.js (the confirm screen)
+                     way names arrive), importPreview.js (the confirm screen),
+                     diplomaPreview.js (stylesheet, assets and dates for the
+                     on-screen diplomas)
 tests/               Vitest unit tests for the pure shared logic
 scripts/smoke.js     End-to-end run of the real app (npm run smoke)
 ocr-data/            Bundled Tesseract model (gitignored — see Getting started)

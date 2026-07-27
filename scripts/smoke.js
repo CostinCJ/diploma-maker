@@ -99,6 +99,35 @@ app.whenReady().then(async () => {
     check('a session.json from an older version was migrated',
       !fs.existsSync(path.join(profile, 'session.json')));
 
+    // A group photo to try the slider against (picking one opens a dialog).
+    const background = path.join(profile, 'group.png');
+    fs.writeFileSync(background, PNG);
+    eq('the group photo slider reaches the rendered diploma',
+      await run(`(async () => {
+        ${step('setup')};
+        const { state, save } = await import('./renderer.js');
+        state.session.background = ${JSON.stringify(background)};
+        const slider = document.getElementById('bgOpacity');
+        slider.value = '20';
+        slider.dispatchEvent(new Event('input'));
+        await new Promise((r) => setTimeout(r, 400));
+        return [
+          document.querySelector('#setupPreview .bg').getAttribute('style'),
+          document.getElementById('bgOpacityValue').textContent,
+          state.session.backgroundOpacity,
+        ];
+      })()`), ['opacity:0.2', '20%', 0.2]);
+    check('and is written to the session file', currentSession().backgroundOpacity === 0.2);
+    eq('the printed diploma uses the same value',
+      await run(`(async () => {
+        const { renderDiplomaHtml } = await import('./shared/diplomaHtml.js');
+        const { diplomaAssets } = await import('./ui/diplomaPreview.js');
+        const { state } = await import('./renderer.js');
+        const { DEFAULT_TEMPLATES } = await import('./shared/template.js');
+        const html = renderDiplomaHtml(DEFAULT_TEMPLATES.kid, 'A B', { start: '', end: '' }, diplomaAssets(state.session));
+        return /<img class="bg"[^>]*style="([^"]*)"/.exec(html)[1];
+      })()`), 'opacity:0.2');
+
     // --- adding children ---------------------------------------------------
     await run(`(async () => {
       ${step('kids')};

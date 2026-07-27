@@ -28,6 +28,24 @@ describe('renderDiplomaHtml', () => {
     expect(html).toContain('&quot;');
   });
 
+  it('renders the chosen strength of the group photo', () => {
+    const html = renderDiplomaHtml(DEFAULT_TEMPLATES.kid, 'A B', CTX, { ...ASSETS, backgroundOpacity: 0.2 });
+    expect(html).toContain('style="opacity:0.2"');
+  });
+
+  it('clamps a strength outside 0–1 instead of emitting it', () => {
+    for (const [given, expected] of [[2, 1], [-1, 0]]) {
+      expect(renderDiplomaHtml(DEFAULT_TEMPLATES.kid, 'A B', CTX, { ...ASSETS, backgroundOpacity: given }))
+        .toContain(`style="opacity:${expected}"`);
+    }
+  });
+
+  // The stylesheet still carries the value every diploma used before this was
+  // a choice, so a caller that does not pass one renders exactly as before.
+  it('leaves the stylesheet in charge when no strength is given', () => {
+    expect(renderDiplomaHtml(DEFAULT_TEMPLATES.kid, 'A B', CTX, ASSETS)).not.toContain('style=');
+  });
+
   it('omits image tags for missing assets', () => {
     const html = renderDiplomaHtml(DEFAULT_TEMPLATES.kid, 'A B', CTX, { background: '', logoLeft: '', logoRight: '' });
     expect(html).not.toContain('<img');

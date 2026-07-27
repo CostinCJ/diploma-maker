@@ -1,8 +1,10 @@
 // src/ui/setup.js
 import { useSession, flushSave } from '../renderer.js';
 import { fileUrl } from '../shared/fileUrl.js';
-import { formatDateRo } from '../shared/template.js';
+import { formatDateRo, DEFAULT_TEMPLATES } from '../shared/template.js';
+import { renderDiplomaHtml } from '../shared/diplomaHtml.js';
 import { countedNoun } from '../shared/roText.js';
+import { ensureDiplomaCss, diplomaAssets, previewCtx } from './diplomaPreview.js';
 
 const ASSETS = [
   { key: 'background', label: 'Fotografie de fundal (poza de grup)' },
@@ -40,13 +42,29 @@ export function init(state, save) {
       <label>Data sfârșit <input type="date" id="endDate"></label>
     </div>
     <div class="row" style="margin-top:20px">
-      ${ASSETS.map((a) => `
-        <div>
-          <div>${a.label}</div>
-          <button class="small" data-asset="${a.key}">Alege imagine…</button>
-          <img class="asset-thumb" id="thumb-${a.key}" alt="" hidden>
-          <div class="error" id="err-${a.key}"></div>
-        </div>`).join('')}
+      <div>
+        <div class="row">
+          ${ASSETS.map((a) => `
+            <div>
+              <div>${a.label}</div>
+              <button class="small" data-asset="${a.key}">Alege imagine…</button>
+              <img class="asset-thumb" id="thumb-${a.key}" alt="" hidden>
+              <div class="error" id="err-${a.key}"></div>
+            </div>`).join('')}
+        </div>
+        <div class="toolbar" style="margin-top:18px">
+          <label for="bgOpacity">Cât de tare se vede fotografia de fundal</label>
+          <input type="range" id="bgOpacity" min="0" max="100" step="1">
+          <output id="bgOpacityValue" class="muted"></output>
+        </div>
+        <p class="muted">
+          Diploma din dreapta arată exact ca la tipărire — trage de cursor până când
+          numele se citește bine peste poză.
+        </p>
+      </div>
+      <div>
+        <div class="preview-box"><div class="preview-frame" id="setupPreview"></div></div>
+      </div>
     </div>
     <p style="margin-top:24px">
       <button class="small" id="deleteEverything">Șterge toate sesiunile</button>
@@ -63,8 +81,8 @@ export function init(state, save) {
   endEl.value = state.session.endDate;
   // The picker shows the name and the dates, so it has to follow them as typed.
   nameEl.addEventListener('input', () => { state.session.name = nameEl.value; save(); refreshPicker(); });
-  startEl.addEventListener('change', () => { state.session.startDate = startEl.value; save(); refreshPicker(); });
-  endEl.addEventListener('change', () => { state.session.endDate = endEl.value; save(); refreshPicker(); });
+  startEl.addEventListener('change', () => { state.session.startDate = startEl.value; save(); refreshPicker(); preview(); });
+  endEl.addEventListener('change', () => { state.session.endDate = endEl.value; save(); refreshPicker(); preview(); });
 
   async function refreshPicker() {
     const sessions = await window.api.listSessions();
@@ -119,6 +137,31 @@ export function init(state, save) {
     await useSession(await window.api.deleteAllSessions());
   });
 
+  ensureDiplomaCss();
+
+  const opacityEl = el.querySelector('#bgOpacity');
+  const opacityValueEl = el.querySelector('#bgOpacityValue');
+
+  /** The real diploma, so the choice is made against the text it has to sit
+   *  behind rather than against a thumbnail. */
+  function preview() {
+    opacityValueEl.textContent = `${Math.round(state.session.backgroundOpacity * 100)}%`;
+    el.querySelector('#setupPreview').innerHTML = renderDiplomaHtml(
+      state.session.templates.kid ?? DEFAULT_TEMPLATES.kid,
+      'NUME PRENUME',
+      previewCtx(state.session),
+      diplomaAssets(state.session),
+    );
+  }
+
+  opacityEl.value = String(Math.round(state.session.backgroundOpacity * 100));
+  // 'input', not 'change': the point is watching the photo fade as it is dragged.
+  opacityEl.addEventListener('input', () => {
+    state.session.backgroundOpacity = Number(opacityEl.value) / 100;
+    preview();
+    save();
+  });
+
   function refreshThumb(key) {
     const img = el.querySelector('#thumb-' + key);
     const err = el.querySelector('#err-' + key);
@@ -134,6 +177,7 @@ export function init(state, save) {
         state.session[key] = '';
         img.hidden = true;
         save();
+        preview();
       };
     }
   }
@@ -144,9 +188,10 @@ export function init(state, save) {
       // The copy being replaced is named explicitly: another session may hold a
       // picture of the same kind, and only this one may be deleted.
       const p = await window.api.pickAsset(key, state.session[key]);
-      if (p) { state.session[key] = p; save(); refreshThumb(key); }
+      if (p) { state.session[key] = p; save(); refreshThumb(key); preview(); }
     });
   });
 
   refreshPicker();
+  preview();
 }

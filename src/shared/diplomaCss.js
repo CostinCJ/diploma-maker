@@ -7,6 +7,8 @@ export const DIPLOMA_CSS = `
 }
 .diploma .bg {
   position: absolute; inset: 0; width: 100%; height: 100%;
+  /* Overridden per session; this is the value every diploma used before the
+     group photo's strength could be chosen. */
   object-fit: cover; opacity: 0.5;
 }
 .diploma .logo { position: absolute; top: 10mm; width: 35mm; height: auto; }

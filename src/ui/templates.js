@@ -1,8 +1,7 @@
 // src/ui/templates.js
-import { formatDateRo, resolveTemplate } from '../shared/template.js';
+import { resolveTemplate } from '../shared/template.js';
 import { renderDiplomaHtml } from '../shared/diplomaHtml.js';
-import { DIPLOMA_CSS } from '../shared/diplomaCss.js';
-import { fileUrl } from '../shared/fileUrl.js';
+import { ensureDiplomaCss, diplomaAssets, previewCtx } from './diplomaPreview.js';
 
 // The two teacher variants differ only in the award line; the other lines are
 // one and the same text, edited from either tab.
@@ -35,27 +34,17 @@ export function init(state, save) {
       <div class="preview-box"><div class="preview-frame" id="tplPreview"></div></div>
     </div>`;
 
-  if (!document.getElementById('diploma-css')) {
-    const style = document.createElement('style');
-    style.id = 'diploma-css';
-    style.textContent = DIPLOMA_CSS;
-    document.head.appendChild(style);
-  }
+  ensureDiplomaCss();
 
   let current = VARIANTS.kid;
 
   function preview() {
-    const ctx = {
-      start: formatDateRo(state.session.startDate) || 'ZZ.LL.AAAA',
-      end: formatDateRo(state.session.endDate) || 'ZZ.LL.AAAA',
-    };
-    const assets = {
-      background: fileUrl(state.session.background),
-      logoLeft: fileUrl(state.session.logoLeft),
-      logoRight: fileUrl(state.session.logoRight),
-    };
-    document.getElementById('tplPreview').innerHTML =
-      renderDiplomaHtml(resolveTemplate(state.session.templates, current), 'NUME PRENUME', ctx, assets);
+    document.getElementById('tplPreview').innerHTML = renderDiplomaHtml(
+      resolveTemplate(state.session.templates, current),
+      'NUME PRENUME',
+      previewCtx(state.session),
+      diplomaAssets(state.session),
+    );
   }
 
   function renderFields() {

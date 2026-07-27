@@ -1,9 +1,8 @@
 // src/ui/generate.js
 import { formatDateRo, resolveTemplate } from '../shared/template.js';
 import { renderDiplomaHtml, buildPrintDocument } from '../shared/diplomaHtml.js';
-import { DIPLOMA_CSS } from '../shared/diplomaCss.js';
 import { validateForGeneration } from '../shared/validation.js';
-import { fileUrl } from '../shared/fileUrl.js';
+import { ensureDiplomaCss, diplomaAssets } from './diplomaPreview.js';
 
 export function init(state, save) {
   const el = document.getElementById('step-generate');
@@ -25,12 +24,7 @@ export function init(state, save) {
     <p class="muted" id="genCount"></p>
     <div id="genPreview" style="margin-top:16px; display:flex; flex-wrap:wrap; gap:12px"></div>`;
 
-  if (!document.getElementById('diploma-css')) {
-    const style = document.createElement('style');
-    style.id = 'diploma-css';
-    style.textContent = DIPLOMA_CSS;
-    document.head.appendChild(style);
-  }
+  ensureDiplomaCss();
 
   function batchEntries(batch) {
     const entries = (list, tpl) => list
@@ -43,11 +37,7 @@ export function init(state, save) {
 
   function buildFragments(batch) {
     const ctx = { start: formatDateRo(state.session.startDate), end: formatDateRo(state.session.endDate) };
-    const assets = {
-      background: fileUrl(state.session.background),
-      logoLeft: fileUrl(state.session.logoLeft),
-      logoRight: fileUrl(state.session.logoRight),
-    };
+    const assets = diplomaAssets(state.session);
     return batchEntries(batch).map((entry) =>
       renderDiplomaHtml(resolveTemplate(state.session.templates, entry), entry.name, ctx, assets));
   }
