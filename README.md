@@ -25,7 +25,7 @@ Built as a Windows desktop app (Electron) with a **hard privacy constraint — c
 - **Word and Excel without a library** — `.docx` and `.xlsx` are ZIP archives of XML, so they are unpacked with the browser's own `DecompressionStream` and read directly. No dependency, nothing downloaded, and Word's `Ş/Ţ` are folded onto the Romanian `Ș/Ț` so the same child never arrives twice. Header rows, numbering columns and extra columns (age, group) are dropped; a list split into *Nume* / *Prenume* columns is joined back together. Legacy `.doc`/`.xls` are refused with an explanation rather than read as garbage.
 - **Adaptive OCR pipeline** — Tesseract's layout analysis is unstable on low-resolution lists, so no single recipe wins: the app scales the page into the size band Tesseract reads best, detects column gutters, and tries a few segmentation/preprocessing combinations, keeping whichever recovers the most full names. On a 452x640 two-column sample this took the result from 2 names to 120.
 - **Romanian-aware parsing** — diacritics (Ș Ț Ă Î Â) preserved; header rows, row numbers, and OCR junk stripped heuristically. No row is ever silently deleted.
-- **Manual teacher list** — a separate, simple list for the handful of accompanying adults. Each one is marked *însoțitor* or *însoțitoare* as their name is typed, so their diploma names one gender instead of printing both forms with a slash. There is no defensible way to guess it, so an unanswered choice blocks printing that batch and says whose it is — the children can still be printed meanwhile.
+- **Manual teacher list** — the same editable list the children get (numbering, reordering, add-a-name on Enter), for the handful of accompanying adults. Each one is marked *însoțitor* or *însoțitoare* as their name is typed, so their diploma names one gender instead of printing both forms with a slash. There is no defensible way to guess it, so an unanswered choice blocks printing that batch and says whose it is — the children can still be printed meanwhile.
 - **Editable templates** — fixed diploma layout, fully editable wording, with three tabs (copil / însoțitor / însoțitoare) and a live preview using real session assets. The two adult tabs differ only in the award line; the rest of the text is shared.
 - **Print & export** — print the whole session, kids only, or teachers only; or export the same render to PDF. One landscape A4 diploma per page — preview is the print output.
 - **Persistent sessions** — everything is stored locally in the app data directory and can be reopened later. Saves are written atomically (temp file + rename), and the last edits are flushed synchronously when the window closes, so a crash or a quick Alt+F4 cannot truncate or lose the list.
@@ -115,7 +115,9 @@ src/
   ocr/columns.js     Column-gutter and text-row detection (pure)
   ocr/readNames.js   Picks the best of several OCR attempts (pure)
   shared/            Pure logic: name parsing, templates, validation, file URLs, diploma HTML/CSS
-  ui/                One module per step
+  ui/                One module per step, plus the pieces two steps share:
+                     nameTable.js (the editable list), importSources.js (every
+                     way names arrive), importPreview.js (the confirm screen)
 tests/               Vitest unit tests for the pure shared logic
 scripts/smoke.js     End-to-end run of the real app (npm run smoke)
 ocr-data/            Bundled Tesseract model (gitignored — see Getting started)

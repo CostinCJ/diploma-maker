@@ -56,7 +56,7 @@ app.whenReady().then(async () => {
   });
 
   try {
-    await waitFor(run, '!!document.getElementById("kidRows")', 'the UI to start');
+    await waitFor(run, '!!document.querySelector("#kidTable tbody")', 'the UI to start');
 
     // Native dialogs never return in a hidden window: answer them in the page.
     await run(`(() => {
@@ -68,7 +68,7 @@ app.whenReady().then(async () => {
     })()`);
 
     const step = (name) => `document.querySelector('button[data-step="${name}"]').click()`;
-    const names = () => run('[...document.querySelectorAll("#kidRows input")].map((i) => i.value)');
+    const names = () => run('[...document.querySelectorAll("#kidTable tbody input")].map((i) => i.value)');
 
     // --- the session itself -------------------------------------------------
     await run(`(async () => {
@@ -87,9 +87,9 @@ app.whenReady().then(async () => {
     // --- adding children ---------------------------------------------------
     await run(`(async () => {
       ${step('kids')};
-      document.getElementById('pasteBtn').click();
-      document.getElementById('pasteBox').value = 'Nr\\tNumele și prenumele\\n1.\\tPopescu Ion\\n2.\\tIonescu Maria\\n3.\\tPopescu Ion';
-      document.getElementById('pasteAdd').click();
+      document.querySelector('#kidSources .paste-btn').click();
+      document.querySelector('#kidSources .paste-box').value = 'Nr\\tNumele și prenumele\\n1.\\tPopescu Ion\\n2.\\tIonescu Maria\\n3.\\tPopescu Ion';
+      document.querySelector('#kidSources .paste-add').click();
       await new Promise((r) => setTimeout(r, 200));
       document.querySelector('.modal-actions button.primary').click();
       await new Promise((r) => setTimeout(r, 100));
@@ -99,7 +99,7 @@ app.whenReady().then(async () => {
     check('the repeated name was left unticked', (await run('window.__alerts.length')) === 0);
 
     await run(`(async () => {
-      const q = document.getElementById('quickAdd');
+      const q = document.querySelector('#kidTable .quick-add');
       q.value = '  radu   eric ';
       q.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
       await new Promise((r) => setTimeout(r, 50));
@@ -127,7 +127,7 @@ app.whenReady().then(async () => {
 
     // --- it all comes back after a restart ---------------------------------
     win.reload();
-    await waitFor(run, '!!document.getElementById("kidRows")', 'the UI to come back');
+    await waitFor(run, '!!document.querySelector("#kidTable tbody")', 'the UI to come back');
     await run(`(() => { window.__confirm = true; window.__alerts = []; window.confirm = () => window.__confirm; window.alert = (m) => window.__alerts.push(m); return 'ok'; })()`);
     await run(step('kids'));
     eq('the list survives a restart', await names(), ['Popescu Ion', 'Ionescu Maria', 'radu eric', 'GHIȚĂ ELENA']);
@@ -149,7 +149,7 @@ app.whenReady().then(async () => {
       fs.existsSync(path.join(profile, 'photos', photoId + '.png')));
 
     await run(`(async () => {
-      const first = document.querySelector('#kidRows input');
+      const first = document.querySelector('#kidTable tbody input');
       first.value = 'POPESCU ION-CORECTAT';
       first.dispatchEvent(new Event('input'));
       await new Promise((r) => setTimeout(r, 400));
@@ -161,8 +161,8 @@ app.whenReady().then(async () => {
     // --- teachers, one gender per diploma ----------------------------------
     await run(`(async () => {
       ${step('teachers')};
-      document.getElementById('addTeacher').click();
-      const row = document.querySelector('#teacherRows tr');
+      document.querySelector('#teacherTable .add-row').click();
+      const row = document.querySelector('#teacherTable tbody tr');
       row.querySelector('input').value = 'MARIN ELENA';
       row.querySelector('input').dispatchEvent(new Event('input'));
       await new Promise((r) => setTimeout(r, 50));
@@ -175,12 +175,27 @@ app.whenReady().then(async () => {
       await new Promise((r) => setTimeout(r, 150));
       return 'ok';
     })()`);
+    eq('the adults get the same add-a-name field as the children',
+      await run(`(async () => {
+        const q = document.querySelector('#teacherTable .quick-add');
+        q.value = 'BARBU ANDREI';
+        q.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+        await new Promise((r) => setTimeout(r, 50));
+        const rows = [...document.querySelectorAll('#teacherTable tbody tr')];
+        return rows.map((tr) => tr.querySelector('input').value);
+      })()`), ['MARIN ELENA', 'BARBU ANDREI']);
+    await run(`(async () => {
+      [...document.querySelectorAll('#teacherTable tbody tr')].pop().querySelector('button:nth-child(3)').click();
+      await new Promise((r) => setTimeout(r, 50));
+      return 'ok';
+    })()`);
+
     check('an undecided teacher blocks printing, by name',
       (await run('document.getElementById("genErrors").textContent')).includes('MARIN ELENA'));
 
     await run(`(async () => {
       ${step('teachers')};
-      const select = document.querySelector('#teacherRows select');
+      const select = document.querySelector('#teacherTable select');
       select.value = 'f';
       select.dispatchEvent(new Event('change'));
       ${step('generate')};

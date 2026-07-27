@@ -38,8 +38,8 @@ table.names select.unset { border-color: #c0392b; color: #c0392b; }
 .muted { color: #777; font-size: 13px; }
 
 .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
-#quickAdd { width: 340px; }
-#pasteBox { width: 100%; max-width: 520px; font-family: inherit; font-size: 14px; padding: 6px 8px; }
+.quick-add { width: 340px; }
+.paste-box { width: 100%; max-width: 520px; font-family: inherit; font-size: 14px; padding: 6px 8px; }
 
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(20, 26, 33, 0.55);
