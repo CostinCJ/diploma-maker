@@ -253,6 +253,33 @@ app.whenReady().then(async () => {
       await run('[...document.querySelectorAll("#genPreview .diploma .award")].map((p) => p.textContent)'),
       ['SE ACORDĂ D-NEI ÎNSOȚITOARE']);
 
+    // --- how each line of the sheet is set ---------------------------------
+    await run(`(async () => {
+      ${step('templates')};
+      const fields = [...document.querySelectorAll('#tplFields .field')];
+      const size = fields[0].querySelector('.size-input');
+      size.value = '52';
+      size.dispatchEvent(new Event('input'));
+      fields[0].querySelector('.fmt-italic').click();
+      // The name line has no text field here — its text comes from the list —
+      // but it is the one whose size matters most.
+      fields[2].querySelector('.fmt-bold').click();
+      await new Promise((r) => setTimeout(r, 400));
+      return 'ok';
+    })()`);
+    eq('the size and the emphasis of a line reach the preview',
+      await run('document.querySelector("#tplPreview h1").getAttribute("style")'),
+      'font-size:52pt;font-style:italic');
+    eq('the name line can be set even though its text is not typed here',
+      await run('document.querySelector("#tplPreview .name").getAttribute("style")'),
+      'font-weight:normal');
+    check('and all of it is written to the session file',
+      currentSession().templates.kid.styles.title.size === 52
+      && currentSession().templates.kid.styles.title.italic === true
+      && currentSession().templates.kid.styles.name.bold === false);
+    check('a line left alone is still left to the stylesheet',
+      await run('!document.querySelector("#tplPreview .dates").getAttribute("style")'));
+
     // --- printing the children ---------------------------------------------
     await run(`(async () => {
       document.getElementById('batch').value = 'kids';
@@ -261,6 +288,9 @@ app.whenReady().then(async () => {
       return 'ok';
     })()`);
     eq('one page per child', await run('document.querySelectorAll("#genPreview .diploma").length'), 4);
+    eq('the pages about to be printed carry the chosen line settings',
+      await run('document.querySelector("#genPreview .diploma h1").getAttribute("style")'),
+      'font-size:52pt;font-style:italic');
     eq('and the names on them are the corrected ones',
       await run('[...document.querySelectorAll("#genPreview .diploma .name")].map((p) => p.textContent)'),
       ['MIGRAT ION', 'POPESCU ION-CORECTAT', 'Ionescu Maria', 'radu eric']);

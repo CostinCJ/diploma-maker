@@ -134,6 +134,44 @@ describe('mergeSession', () => {
     expect(s.templates.teacher.awardLineF).toBe('SE ACORDĂ DOAMNEI PROFESOARE');
   });
 
+  // How each line is set was added after the first camps; a session written
+  // before it has to come back looking exactly as it was printed.
+  it('gives a session without line styles the ones the stylesheet prints', () => {
+    const s = mergeSession({ templates: { kid: { title: 'Custom' } } });
+    expect(s.templates.kid.styles).toEqual(defaultSession().templates.kid.styles);
+    expect(s.templates.kid.styles.title).toEqual({ size: 40, bold: true, italic: false });
+  });
+
+  it('keeps the sizes and the emphasis that were chosen', () => {
+    const s = mergeSession({
+      templates: { kid: { styles: { title: { size: 52, bold: false, italic: true } } } },
+    });
+    expect(s.templates.kid.styles.title).toEqual({ size: 52, bold: false, italic: true });
+    expect(s.templates.kid.styles.dates).toEqual({ size: 14, bold: false, italic: false });
+  });
+
+  it('clamps, rounds or ignores a size it cannot use', () => {
+    const size = (v) => mergeSession({ templates: { kid: { styles: { title: { size: v } } } } })
+      .templates.kid.styles.title.size;
+    expect(size(500)).toBe(80);
+    expect(size(2)).toBe(8);
+    expect(size(20.6)).toBe(21);
+    expect(size('30')).toBe(40); // not a number: the default stands
+    expect(size(NaN)).toBe(40);
+  });
+
+  it('ignores an emphasis flag that is not a boolean', () => {
+    const s = mergeSession({ templates: { kid: { styles: { name: { bold: 'yes', italic: 1 } } } } });
+    expect(s.templates.kid.styles.name).toEqual({ size: 26, bold: true, italic: false });
+  });
+
+  it('ignores a broken styles field instead of dropping the line', () => {
+    for (const bad of ['x', 42, null, [{ size: 9 }]]) {
+      const s = mergeSession({ templates: { kid: { styles: bad } } });
+      expect(s.templates.kid.styles).toEqual(defaultSession().templates.kid.styles);
+    }
+  });
+
   it('prefers already-split lines over the old one', () => {
     const s = mergeSession({
       templates: {

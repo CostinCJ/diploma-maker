@@ -1,5 +1,7 @@
 // src/shared/session.js
-import { DEFAULT_TEMPLATES } from './template.js';
+import {
+  DEFAULT_TEMPLATES, DEFAULT_LINE_STYLES, MIN_LINE_SIZE, MAX_LINE_SIZE,
+} from './template.js';
 
 export function defaultSession() {
   return {
@@ -79,10 +81,36 @@ function migrateTeacherTemplate(loaded) {
   return { awardLineM: old, awardLineF: old, ...loaded };
 }
 
+const asPointSize = (v, fallback) => (typeof v === 'number' && Number.isFinite(v)
+  ? Math.min(MAX_LINE_SIZE, Math.max(MIN_LINE_SIZE, Math.round(v)))
+  : fallback);
+
+const asFlag = (v, fallback) => (typeof v === 'boolean' ? v : fallback);
+
+/** How each of the five lines is set. Sessions written before the size and the
+ *  emphasis could be chosen have none, and get the values the stylesheet was
+ *  already printing. */
+function asLineStyles(loaded) {
+  const out = {};
+  for (const [slot, base] of Object.entries(DEFAULT_LINE_STYLES)) {
+    const line = isObject(loaded) && isObject(loaded[slot]) ? loaded[slot] : {};
+    out[slot] = {
+      size: asPointSize(line.size, base.size),
+      bold: asFlag(line.bold, base.bold),
+      italic: asFlag(line.italic, base.italic),
+    };
+  }
+  return out;
+}
+
 function mergeTemplate(base, loaded) {
   if (!isObject(loaded)) return base;
   const out = { ...base };
-  for (const key of Object.keys(base)) out[key] = asText(loaded[key], base[key]);
+  for (const key of Object.keys(base)) {
+    if (key === 'styles') continue; // not text: it has its own shape
+    out[key] = asText(loaded[key], base[key]);
+  }
+  out.styles = asLineStyles(loaded.styles);
   return out;
 }
 

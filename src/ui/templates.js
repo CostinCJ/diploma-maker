@@ -1,5 +1,5 @@
 // src/ui/templates.js
-import { resolveTemplate } from '../shared/template.js';
+import { resolveTemplate, MIN_LINE_SIZE, MAX_LINE_SIZE } from '../shared/template.js';
 import { renderDiplomaHtml } from '../shared/diplomaHtml.js';
 import { ensureDiplomaCss, diplomaAssets, previewCtx } from './diplomaPreview.js';
 
@@ -13,11 +13,15 @@ const VARIANTS = {
 
 const awardKey = ({ gender }) => (gender === 'm' ? 'awardLineM' : gender === 'f' ? 'awardLineF' : 'awardLine');
 
+// Top to bottom, as they sit on the sheet. `slot` is the line's place on the
+// diploma, which is what the size and the emphasis belong to; the name has no
+// `key` because its text comes from the list, not from here.
 const linesFor = (variant) => [
-  { key: 'title', label: 'Titlu' },
-  { key: awardKey(variant), label: 'Linia de acordare' },
-  { key: 'participationLine', label: 'Linia de participare' },
-  { key: 'dateLine', label: 'Linia de dată ({start}, {end})' },
+  { key: 'title', slot: 'title', label: 'Titlu' },
+  { key: awardKey(variant), slot: 'award', label: 'Linia de acordare' },
+  { slot: 'name', label: 'Numele (se completează din listă)' },
+  { key: 'participationLine', slot: 'part', label: 'Linia de participare' },
+  { key: 'dateLine', slot: 'dates', label: 'Linia de dată ({start}, {end})' },
 ];
 
 export function init(state, save) {
@@ -47,21 +51,79 @@ export function init(state, save) {
     );
   }
 
+  /** How big one line is set, and whether it is bold or italic. The two
+   *  teacher variants word the award line differently but print it the same
+   *  way, so the choice is kept per line of the sheet, not per variant. */
+  function formatBar(slot) {
+    const style = state.session.templates[current.tpl].styles[slot];
+    const bar = document.createElement('div');
+    bar.className = 'format-bar';
+
+    const size = document.createElement('input');
+    size.type = 'number';
+    size.className = 'size-input';
+    size.min = String(MIN_LINE_SIZE);
+    size.max = String(MAX_LINE_SIZE);
+    size.value = String(style.size);
+    size.title = 'Mărimea literelor';
+    size.addEventListener('input', () => {
+      const n = Number(size.value);
+      // A half-typed number ('' while retyping) is not a choice yet.
+      if (!size.value.trim() || !Number.isFinite(n)) return;
+      if (n < MIN_LINE_SIZE || n > MAX_LINE_SIZE) return;
+      style.size = Math.round(n);
+      save(); preview();
+    });
+    size.addEventListener('blur', () => { size.value = String(style.size); });
+
+    const unit = document.createElement('span');
+    unit.className = 'muted size-unit';
+    unit.textContent = 'pt';
+
+    const toggle = (prop, letter, title) => {
+      const btn = document.createElement('button');
+      btn.className = 'small fmt fmt-' + prop;
+      btn.textContent = letter;
+      btn.title = title;
+      const show = () => {
+        btn.classList.toggle('active', style[prop]);
+        btn.setAttribute('aria-pressed', String(style[prop]));
+      };
+      btn.addEventListener('click', () => {
+        style[prop] = !style[prop];
+        show();
+        save(); preview();
+      });
+      show();
+      return btn;
+    };
+
+    bar.append(size, unit, toggle('bold', 'B', 'Îngroșat'), toggle('italic', 'I', 'Cursiv'));
+    return bar;
+  }
+
   function renderFields() {
     const box = el.querySelector('#tplFields');
     box.innerHTML = '';
-    for (const { key, label } of linesFor(current)) {
+    for (const { key, slot, label } of linesFor(current)) {
       const wrap = document.createElement('div');
       wrap.className = 'field';
-      wrap.innerHTML = `<div class="muted">${label}</div>`;
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = state.session.templates[current.tpl][key];
-      input.addEventListener('input', () => {
-        state.session.templates[current.tpl][key] = input.value;
-        save(); preview();
-      });
-      wrap.appendChild(input);
+      const head = document.createElement('div');
+      head.className = 'field-head';
+      head.innerHTML = `<div class="muted">${label}</div>`;
+      head.appendChild(formatBar(slot));
+      wrap.appendChild(head);
+
+      if (key) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = state.session.templates[current.tpl][key];
+        input.addEventListener('input', () => {
+          state.session.templates[current.tpl][key] = input.value;
+          save(); preview();
+        });
+        wrap.appendChild(input);
+      }
       box.appendChild(wrap);
     }
   }
