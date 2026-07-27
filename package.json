@@ -1,7 +1,7 @@
 {
   "name": "diploma-maker",
   "productName": "Diploma Maker",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Offline diploma generator for camp sessions",
   "main": "electron/main.js",
   "scripts": {
@@ -21,10 +21,26 @@
   "build": {
     "appId": "ro.tabereapuseni.diplomamaker",
     "productName": "Diploma Maker",
-    "win": { "target": "nsis" },
-    "nsis": { "artifactName": "DiplomaMaker-Setup-${version}.exe" },
-    "files": ["electron/**", "src/**", "package.json"],
-    "extraResources": [{ "from": "ocr-data", "to": "ocr-data" }],
-    "asarUnpack": ["node_modules/tesseract.js/**", "node_modules/tesseract.js-core/**"]
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "artifactName": "DiplomaMaker-Setup-${version}.exe"
+    },
+    "files": [
+      "electron/**",
+      "src/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "ocr-data",
+        "to": "ocr-data"
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/tesseract.js/**",
+      "node_modules/tesseract.js-core/**"
+    ]
   }
 }
